@@ -1,43 +1,67 @@
 # We want to create a model that predicts whether a patient is hypertensive (HIGHBP = 1) 
 
-# Reasons not to use simple subsitution when estimating values below the limit of detection (LOD) 
-# (Talks about LOD in case study). More about this later on
-# https://www.cambridge.org/core/services/aop-cambridge-core/content/view/S0033845111067287 
-# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3122101/
-# http://analytics.ncsu.edu/sesug/2003/SD08-Croghan.pdf
-# https://community.jmp.com/t5/JMPer-Cable/When-Responses-Are-Below-the-Limit-of-Detection/ba-p/28973
-
 # Load some useful packages
-library(tidyverse)  # a set of packages including ggplot2 and dplyr
-
-setwd("../Jonathan/R/Stat 402/Project") 
+library(tidyverse)  # a set of packages including ggplot2
 
 # First bring the chms_2018 dataset into R
 study_data = read_csv("chms_2018.csv")
 
 # The values for LAB_BCD and LAB_BHG are set to 999.5 when the patients recorded values are too low to be measured (ie. they are below the LOD)
 # First understand how common this is
-sum(study_data$LAB_BCD == 999.5)  # Occurs 54 times
-sum(study_data$LAB_BHG == 999.5)  # Occurs 599 times 
+BCD_LOD = sum(study_data$LAB_BCD == 999.5, na.rm = TRUE)  
+BCD_LOD  # 999.5 appears 54 times in LAB_BCD
+BHG_LOD = sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)
+BHG_LOD  # 999.5 appears 599 times in LAB_BHG
 
 # Since data set contains about 3000 observations, the proportion of times when LAB_BHG = 999.5 is quite large, and estimating these
 # values incorrectly could have a big (negative) impact on our analysis
 
+# The values below the LOD are replaced with randomly drawn elements from the interval (0, LOD) as per the professor's suggestion; this is called jittering.
+study_data$LAB_BCD[study_data$LAB_BCD == 999.5 & !is.na(study_data$LAB_BCD)] = runif(BCD_LOD, 0, 0.71)
+study_data$LAB_BHG[study_data$LAB_BHG == 999.5 & !is.na(study_data$LAB_BHG)] = runif(BHG_LOD, 0, 2.1)
+
+# Confirm that all LOD values have been replaced.
+sum(study_data$LAB_BCD == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_BCD
+sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_BHG
+
+
+
+#---------------------------------------------------------------------------------------------------------------
+# Dealing with missing values (work in progress)
+
 # Check how many missing values there are in this data set
 sum(is.na(study_data))  # 175 missing values
 
-# How to deal with these values below the LOD? Could estimate them all with a single value (ex. let them all equal 0 or LOD/2 or LOD/sqrt(2))
-# This is very simple, but based on some reading (shown at the top), this approach does not seem recommended (makes estimators unbiased?)
-# The alternative would be to somehow use the data points with LAB_BCD/LAB_BHG values above the LOD to estimate those values below the LOD
-# For example, it sounds like the method of maximum likelihood can be used to estimate these values below the LOD
-# Time series analysis can also apparently be used, but I don't know anything about this!
+# Return variables that contain missing values, as well as their respective number of missing values
+n_missing = colSums(is.na(study_data)) # number of missing values in each column of data set
+matrix(c(names(study_data)[n_missing > 0], n_missing[n_missing > 0]), nrow = 2, byrow = TRUE)
+
+# One of these is a categorical variable with 3 levels. Others are continuous variables
+# How should we model these variables?
+
+# Start by ploting HWMDBMI. This may help us figure out how to model it (error message is okay, it just refers to the na values)
+ggplot(study_data, aes(HWMDBMI)) + geom_histogram(binwidth = 0.1, boundary = 0)
+
+# This sampling distribution seems very odd!?! Why does it look like this?
+# Perhaps the missing values are not random at all, but explain the 'dips' of this graph?
+# Hmm, on the other hand, the 79 missing observations cannot affect this graph too much since there are ~3000 observations
+# This is how it would basically look even with those missing values
+
+# How does this affect analysis?
+
+# Plot LAB_BCD. Notice how LAB_BCD exclusively takes on integer values when > 10
+ggplot(study_data, aes(LAB_BCD)) + geom_histogram(binwidth = 0.5, boundary = 0)
+
+#Plot LAB_BHG
+ggplot(study_data, aes(LAB_BHG)) + geom_histogram(binwidth = 0.5, boundary = 0)
+
+# Will try using non-parametric techniques to model data. This allows us to avoid guessing the distributions of the explanatory variables
+# 
 
 
-# After these values below the LOD are estimated, we can estimate the missing values in the data set (imputation)
-# A simple approach is to replace missing values in continuous variables with the sample mean of that variable, and missing values in categorical variables with the mode (since mean would not make sense here)
-# However, if the sample variance of LAB_BCD and LAB_BHG is not small (which it seems to be), then this is not an accurate approach 
-# A better solution may be to replace missing values with randomly selected non-missing values of the same variable
-# This would be easy to do, and I think would better take into account the variance of the data
+#------------------------------------------------------------------------------------------------------------------
+# Once missing values are estimated...
+# Don't know if the rest of this works yet!
 
 # A model is created using the simple replacement approach described above
 count(study_data, SMK_12)  # SMK_12 has one NA value, and has a mode of 3
