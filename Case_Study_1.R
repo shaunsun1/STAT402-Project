@@ -1,12 +1,13 @@
-# We want to create a model that predicts whether a patient is hypertensive (HIGHBP = 1) 
+# We want to create a model that predicts whether a patient is hypertensive (HIGHBP = 1) or not (HIGHBP = 0)
 
 # Load some useful packages
 library(tidyverse)  # a set of packages including ggplot2
+library(class)  # a package of recommended priority used for knn
 
 # First bring the chms_2018 dataset into R
 study_data = read_csv("chms_2018.csv")
 
-# The values for LAB_BCD and LAB_BHG are set to 999.5 when the patients recorded values are too low to be measured (ie. they are below the LOD)
+# The values for LAB_BCD and LAB_BHG have been set to 999.5 when the patients recorded values are too low to be measured (ie. they are below the LOD)
 # First understand how common this is
 BCD_LOD = sum(study_data$LAB_BCD == 999.5, na.rm = TRUE)  
 BCD_LOD  # 999.5 appears 54 times in LAB_BCD
@@ -16,7 +17,7 @@ BHG_LOD  # 999.5 appears 599 times in LAB_BHG
 # Since data set contains about 3000 observations, the proportion of times when LAB_BHG = 999.5 is quite large, and estimating these
 # values incorrectly could have a big (negative) impact on our analysis
 
-# The values below the LOD are replaced with randomly drawn elements from the interval (0, LOD) as per the professor's suggestion; this is called jittering.
+# The values below the LOD are replaced with randomly drawn elements from the interval (0, LOD); this is called jittering.
 study_data$LAB_BCD[study_data$LAB_BCD == 999.5 & !is.na(study_data$LAB_BCD)] = runif(BCD_LOD, 0, 0.71)
 study_data$LAB_BHG[study_data$LAB_BHG == 999.5 & !is.na(study_data$LAB_BHG)] = runif(BHG_LOD, 0, 2.1)
 
@@ -27,7 +28,7 @@ sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_B
 
 
 #---------------------------------------------------------------------------------------------------------------
-# Dealing with missing values (work in progress)
+# Use K-Nearest-Neighbors (KNN) to estimate missing values
 
 # Check how many missing values there are in this data set
 sum(is.na(study_data))  # 175 missing values
@@ -36,31 +37,33 @@ sum(is.na(study_data))  # 175 missing values
 n_missing = colSums(is.na(study_data)) # number of missing values in each column of data set
 matrix(c(names(study_data)[n_missing > 0], n_missing[n_missing > 0]), nrow = 2, byrow = TRUE)
 
-# One of these is a categorical variable with 3 levels. Others are continuous variables
-# How should we model these variables?
+# Are there observations that contain multiple missing values?
+multiple_missing = rowSums(is.na(study_data))  # number of missing values in each row of data set
+sum(multiple_missing >= 2)  # number of observations that contain at least 2 missing values equals two
+sum(multiple_missing == 2)  # number of observations that contain exactly 2 missing values equals two
 
-# Start by ploting HWMDBMI. This may help us figure out how to model it (error message is okay, it just refers to the na values)
-ggplot(study_data, aes(HWMDBMI)) + geom_histogram(binwidth = 0.1, boundary = 0)
+# Before using KNN, the data should be standardized so that each variable in model is given equal weight
+# This can be done with base::scale()
 
-# This sampling distribution seems very odd!?! Why does it look like this?
-# Perhaps the missing values are not random at all, but explain the 'dips' of this graph?
-# Hmm, on the other hand, the 79 missing observations cannot affect this graph too much since there are ~3000 observations
-# This is how it would basically look even with those missing values
+# Next, the value for K (# of neighbors) needs to be decided. This selection should be as rigorous as possible
+# Cross-validation is a techique that estimates the "test error" (in contrast to "training error") of estimates using a particular model 
+# Test error measures how well the model will perform on new data (which is what we care about!), while training error measures how well model fits training data (ie. original sample)
+# The K value that produces the model that has the smallest estimate of test error will be used in our model
 
-# How does this affect analysis?
+# Building the knn model can be done with class:knn() and I think cross-validation can be done with class::knn.cv()
 
-# Plot LAB_BCD. Notice how LAB_BCD exclusively takes on integer values when > 10
-ggplot(study_data, aes(LAB_BCD)) + geom_histogram(binwidth = 0.5, boundary = 0)
+# Now that we have our value of K, we predict our missing values 
+# There are multiple variables that contain missing values however. One possible approach is to use an iterative procedure 
+# For example, can start by imputing all missing values using some simple technique, such as replacement by sample mean of respective variable
+# These can be considered initial guesses for the true values of the missing data
+# At this point, the variables that had missing values are given some order, and one of the variables is chosen
+# For this chosen variable, the previous guesses for the values of the missing data are replaced with the KNN estimates
+# The next variable in line is chosen, and the process repeats until (hopeful!) convergence of the estimates of missing values
 
-#Plot LAB_BHG
-ggplot(study_data, aes(LAB_BHG)) + geom_histogram(binwidth = 0.5, boundary = 0)
-
-# Will try using non-parametric techniques to model data. This allows us to avoid guessing the distributions of the explanatory variables
-# 
 
 
 #------------------------------------------------------------------------------------------------------------------
-# Once missing values are estimated...
+# Now that all missing values are estimated, can finally create model that predicts HIGHBP
 # Don't know if the rest of this works yet!
 
 # A model is created using the simple replacement approach described above
