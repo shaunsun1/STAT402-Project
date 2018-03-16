@@ -1,8 +1,6 @@
-# We want to create a model that predicts whether a patient is hypertensive (HIGHBP = 1) or not (HIGHBP = 0)
-
 # Load some useful packages
 library(tidyverse)  # a set of packages including ggplot2
-library(class)  # a package of recommended priority used for knn
+library(caret)  # used for knn and cross-validation
 
 # First bring the chms_2018 dataset into R
 study_data = read_csv("chms_2018.csv")
@@ -29,6 +27,7 @@ sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_B
 
 #---------------------------------------------------------------------------------------------------------------
 # Use K-Nearest-Neighbors (KNN) to estimate missing values
+# We've assumed here that the missing values have been determined randomly
 
 # Check how many missing values there are in this data set
 sum(is.na(study_data))  # 175 missing values
@@ -39,59 +38,46 @@ matrix(c(names(study_data)[n_missing > 0], n_missing[n_missing > 0]), nrow = 2, 
 
 # Are there observations that contain multiple missing values?
 multiple_missing = rowSums(is.na(study_data))  # number of missing values in each row of data set
-sum(multiple_missing >= 2)  # number of observations that contain at least 2 missing values equals two
-sum(multiple_missing == 2)  # number of observations that contain exactly 2 missing values equals two
+study_data[multiple_missing >= 2, seq(2, 8)] # return observations that have multiple missing values
 
-# Before using KNN, the data should be standardized so that each variable in model is given equal weight
-# This can be done with base::scale()
+# To simplify the following estimation, will estimate the LAB_BHG values for these two observations with the sample mean of LAB_BHG
+# This insures that every observation has no more than 1 missing value
+study_data$LAB_BHG[multiple_missing >= 2] = mean(study_data$LAB_BHG, na.rm = TRUE) 
 
-# Next, the value for K (# of neighbors) needs to be decided. This selection should be as rigorous as possible
-# Cross-validation is a techique that estimates the "test error" (in contrast to "training error") of estimates using a particular model 
-# Test error measures how well the model will perform on new data (which is what we care about!), while training error measures how well model fits training data (ie. original sample)
-# The K value that produces the model that has the smallest estimate of test error will be used in our model
+multiple_missing = rowSums(is.na(study_data)) 
+sum(multiple_missing > 1) # No observations have more than one missing value now
 
-# Building the knn model can be done with class:knn() and I think cross-validation can be done with class::knn.cv()
+# Use cross-validation to find the best value of K to use in KNN 
+ctrl <- trainControl(method="cv") 
 
-# Now that we have our value of K, we predict our missing values 
-# There are multiple variables that contain missing values however. One possible approach is to use an iterative procedure 
-# For example, can start by imputing all missing values using some simple technique, such as replacement by sample mean of respective variable
-# These can be considered initial guesses for the true values of the missing data
-# At this point, the variables that had missing values are given some order, and one of the variables is chosen
-# For this chosen variable, the previous guesses for the values of the missing data are replaced with the KNN estimates
-# The next variable in line is chosen, and the process repeats until (hopeful!) convergence of the estimates of missing values
+# Using HWMDBMI as the response variable, find the best value of K using as the training set only the observations that have no missing values
+knn_HWMDBMI <- train(HWMDBMI ~ ., data = study_data[, seq(2, 8)], subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+# Estimate the missing values in HWMDBMI
+study_data$HWMDBMI[is.na(study_data$HWMDBMI)] = predict(knn_HWMDBMI, study_data[is.na(study_data$HWMDBMI), seq(2, 8)])
+
+# Repeat the above steps for the other variables with missing data
+knn_LAB_BCD <- train(LAB_BCD ~ ., data = study_data[, seq(2, 8)], subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+study_data$LAB_BCD[is.na(study_data$LAB_BCD)] = predict(knn_LAB_BCD, study_data[is.na(study_data$LAB_BCD), seq(2, 8)])
+
+knn_LAB_BHG <- train(LAB_BHG ~ ., data = study_data[, seq(2, 8)], subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+study_data$LAB_BHG[is.na(study_data$LAB_BHG)] = predict(knn_LAB_BHG, study_data[is.na(study_data$LAB_BHG), seq(2, 8)])
+
+knn_SMK_12 <- train(as.factor(SMK_12) ~ ., data = study_data[, seq(2, 8)], subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+study_data$SMK_12[is.na(study_data$SMK_12)] = predict(knn_SMK_12, study_data[is.na(study_data$SMK_12), seq(2, 8)])
+
+sum(is.na(study_data))  # 0 missing values
 
 
 
 #------------------------------------------------------------------------------------------------------------------
-# Now that all missing values are estimated, can finally create model that predicts HIGHBP
-# Don't know if the rest of this works yet!
-
-# A model is created using the simple replacement approach described above
-count(study_data, SMK_12)  # SMK_12 has one NA value, and has a mode of 3
-study_data = study_data %>%
-  replace_na(list(SMK_12 = 3, HWMDBMI = mean(.$HWMDBMI, na.rm = TRUE), LAB_BCD = mean(.$LAB_BCD, na.rm = TRUE), LAB_BHG = mean(.$LAB_BHG, na.rm = TRUE)))
-  
-# Confirm that there are no more missing values in data set
-sum(is.na(study_data))  # 0 missing values
+# Now that all missing values are estimated, we can finally create a model that predicts HIGHBP
+# Since we are interested only in determining which factors have a significant effect on HIGHBP (given the other variables in the model), we can ignore interaction terms
 
 # Will model the response (HIGHBP) as having a Bernoulli distribution, and assume link function has the logit form
-model_full = glm(as.factor(HIGHBP) ~ as.factor(SMK_12)*as.factor(CLC_SEX)*CLC_AGE*HWMDBMI*LAB_BCD*LAB_BHG, binomial, study_data)
-summary(model_full)
+model = glm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial, study_data)
+summary(model)
 
-# The p-values given by the summary function tell us the significance of the variable given the other variables included in the model
-# We could now reduce the variables included in the final model using backwards selection.
-# There are however 2 flaws with this method:
-#   1) Given there are so many variables and interaction terms in the full model, it would take a long time to perform this backwards selection
-#   2) Performing so many tests increases both type 1 and type 2 error
+# Apply ANOVA to reduce variables in model
 
-# Thus, it may be a good idea to use ANOVA to test the significance of multiple variables/interaction terms at once
-# Notice that the 'anova' function in R is capable of computing anaylsis of deviance tables for glms, which is what we learned in class
 
-# Start by comparing the full model (every term and interaction term) with the model without interaction terms of "length" 5 or 6
-model_1 = glm(as.factor(HIGHBP) ~ (as.factor(SMK_12)+as.factor(CLC_SEX)+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG)^4, binomial, study_data)
-anova(model_1, model_full, test = "Chisq")
 
-# Repeat until final model has been selected
-
-# Notice the errors we get when model_full and model_1 are created. I'm not sure why we are getting these errors, but it may go away
-# after properly estimating the values below the LOD and the missing values
