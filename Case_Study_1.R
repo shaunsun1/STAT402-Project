@@ -1,11 +1,13 @@
 # Load some useful packages
 library(tidyverse)  # a set of packages including ggplot2
 library(caret)  # used for knn and cross-validation
-library(ResourceSelection)  # hosmer-lemeshow test is used as a goodness-of-fit test
+library(car)  # calculates VIF to check for multicollinearity
+library(LogisticDx)  # Calculates a Standardized Pearson Chi Square statistic, which is used as a measure of goodness-of-fit
+library(survey)  # Weighted glm
 
-# Bring the chms_2018 dataset into R
+# Bring the chms_2018 dataset into R, and remove the bootstrap weights and patient id, as they are not used in this analysis
 study_data = read_csv("chms_2018.csv")
-
+study_data = select(study_data, -1, -starts_with("BS"))
 
 #----------------------------------------------------------------------------------------------------------------
 
@@ -57,19 +59,19 @@ ctrl <- trainControl(method="cv")
 
 # Using HWMDBMI as the response variable, find the best value of K using as the training set only the observations 
 # that have no missing values
-knn_HWMDBMI <- train(HWMDBMI ~ ., data = study_data[, seq(2, 8)], subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+knn_HWMDBMI <- train(HWMDBMI ~ ., data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
 # Estimate the missing values in HWMDBMI
-study_data$HWMDBMI[is.na(study_data$HWMDBMI)] = predict(knn_HWMDBMI, study_data[is.na(study_data$HWMDBMI), seq(2, 8)])
+study_data$HWMDBMI[is.na(study_data$HWMDBMI)] = predict(knn_HWMDBMI, study_data[is.na(study_data$HWMDBMI),])
 
 # Repeat the above steps for the other variables with missing data
-knn_LAB_BCD <- train(LAB_BCD ~ ., data = study_data[, seq(2, 8)], subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
-study_data$LAB_BCD[is.na(study_data$LAB_BCD)] = predict(knn_LAB_BCD, study_data[is.na(study_data$LAB_BCD), seq(2, 8)])
+knn_LAB_BCD <- train(LAB_BCD ~ ., data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+study_data$LAB_BCD[is.na(study_data$LAB_BCD)] = predict(knn_LAB_BCD, study_data[is.na(study_data$LAB_BCD),])
 
-knn_LAB_BHG <- train(LAB_BHG ~ ., data = study_data[, seq(2, 8)], subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
-study_data$LAB_BHG[is.na(study_data$LAB_BHG)] = predict(knn_LAB_BHG, study_data[is.na(study_data$LAB_BHG), seq(2, 8)])
+knn_LAB_BHG <- train(LAB_BHG ~ ., data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+study_data$LAB_BHG[is.na(study_data$LAB_BHG)] = predict(knn_LAB_BHG, study_data[is.na(study_data$LAB_BHG),])
 
-knn_SMK_12 <- train(as.factor(SMK_12) ~ ., data = study_data[, seq(2, 8)], subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
-study_data$SMK_12[is.na(study_data$SMK_12)] = predict(knn_SMK_12, study_data[is.na(study_data$SMK_12), seq(2, 8)])
+knn_SMK_12 <- train(as.factor(SMK_12) ~ ., data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+study_data$SMK_12[is.na(study_data$SMK_12)] = predict(knn_SMK_12, study_data[is.na(study_data$SMK_12),])
 
 sum(is.na(study_data))  # 0 missing values
 
@@ -84,13 +86,20 @@ sum(is.na(study_data))  # 0 missing values
 # Model the response (HIGHBP) as having a Bernoulli distribution, and assume link function has the logit form
 yfit = glm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data)
 
+# Calculate the variance inflation factors (VIF) for each predictor to check for multicollinearity
+vif(yfit)
+
+# These values are all close to 1, so we do not need to worry about multicollinearity
+
+# To check how well the model fits the sample data, the Deviance or the Chi-Squared statistic would normally be used
+# However, our model includes continuous explanatory variables, which means these statistics will not follow their 
+# theoretical asymptotic distributions. To get around this, a Standardized Chi-Squared statistic will be used instead,
+# as this was proven by Osius and Rojek to approximately follow a normal distribution
+
 # The null hypothesis for this test is that our proposed model fits the sample data as well as the saturated model
 # The alternative hypothesis is that the saturated model fits the sample data better than the proposed model
 
-hoslem.test(yfit$y, fitted.values(yfit), 10)
-
-# Using a significance level of 0.05, we cannot reject the null hypothesis. This suggests that our model does 
-# fit the sample data well
+gof(yfit, plotROC = FALSE)
 
 # Another test should be done before being satisfied with the fit of the model. Perhaps the residuals can be examined?
 # Also, models with different link functions could be compared (ex. extreme value distribution, log-log function) 
@@ -136,5 +145,13 @@ summary(older_fit)
 # For the older group, none of these factors are significant!
 # Thus, different age groups do experience different risk factors for HIGHBP.
 
-# We still need to do the analysis with the survey weights being taken into account. I think this can actually 
-# be done using the regular glm() function
+
+#----------------------------------------------------------------------------------------------------------------
+
+
+# Redo analysis with survey weights
+# A quasibinomial model is fit to avoid an error about non-integer responses. This solution was recommended by the help files
+weighted_design = svydesign(ids = ~1, data = study_data, weights = study_data$WGT_FULL)  # used in design variable below
+weighted_glm = svyglm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = weighted_design, family = quasibinomial(link = 'logit'), data = study_data)
+summary(weighted_glm)
+
