@@ -4,14 +4,12 @@ library(caret)  # used for knn and cross-validation
 library(car)  # calculates VIF to check for multicollinearity
 library(survey)  # weighted glm
 library(ResourceSelection)  # Hosmer-Lemeshow goodness-of-fit test
-library(bestglm)  # performs variable selection using best subset method
 
 # Bring the chms_2018 dataset into R, and remove the bootstrap weights as they are not used in this analysis
 study_data = read.csv("chms_2018.csv")
 study_data = select(study_data, -starts_with("BS"))
 
-# Move HIGHBP variable to last column. This will be useful later when using the bestglm() function
-study_data = study_data[c(seq(1, 5), seq(7, 9), 6)]
+# Make SMK_12 a factor
 study_data$SMK_12 = as.factor(study_data$SMK_12)
 
 # Choose seeds so that results from imputing censored data is fixed.
@@ -85,7 +83,6 @@ sum(is.na(study_data))  # 0 missing values
 
 study_data$HIGHBP = study_data$HIGHBP - 1  # change levels for simplicity
 
-
 #----------------------------------------------------------------------------------------------------------------
 # Now that all missing values are estimated, we can create a model that predicts HIGHBP
 # Since we are interested only in determining which factors have a significant effect on HIGHBP 
@@ -130,11 +127,10 @@ ggplot(mapping = aes(x = "Cloglog", y = pvalues_cloglog)) + geom_boxplot()
 # roughly the same. However, most of the p-values are quite small, providing evidence that none of these models 
 # fit the sample data as well as the saturated model.
 
+# This is concerning, although maybe not surprising because no interaction terms or higher order terms have been fitted
+# 
+
 # Residuals would usually be checked as well. However...
-
-# Thus, if one of these three link models closely approximates the "true model", higher order terms or interaction affect
-# would have to be added. However, all we care about is 
-
 
 # Since the Logit model gives the highest pvalues and also the smallest AIC value, we will use exclusively this model
 # for the rest of the analysis
@@ -143,20 +139,16 @@ ggplot(mapping = aes(x = "Cloglog", y = pvalues_cloglog)) + geom_boxplot()
 # Calculate the variance inflation factors (VIF) for each predictor to check for multicollinearity
 vif(model_logit)  # These values are all close to 1, so we do not need to worry about multicollinearity
 
-# Determine which subset of variables in logit model best predict HIGHBP, using AIC
-bestSubset_logit = bestglm(study_data[, -c(1, 8)], binomial(link = 'logit'), "AIC", TopModels = 10)
-bestSubset_logit$Subsets
+# To check whether a variable has a "significant" effect on the response HIGHBP, we remove each variable in turn 
+# and compare the difference in deviance statistics. Even with sparse data such as ours, this difference in 
+# deviance should still approximate a chi-square distribution with 1 d.f
 
-# AIC recommends using the model with all regressor variables except for LAB_BCD
-# Notice though that the AIC value for the model with four regressors is very close to the one with 5 variables
-# In other words, we were very close to leaving out SMK_12 in our model
+drop1(model_logit, test = "LRT")
 
-# Check results of model
-summary(model_logit)
 
-# In order to compare whether a variable in the model is "significant", we would typically compare nested models
-# using a statistic such as the deviance. As noted above however, the asymptotic distribution will not hold.
-# Thus, the Wald's statistic is relied upon to test the significance of variables.
+# These p-values give another perspective on the strength of the relationship between a regressor and HIGHBP.
+# We sort the variables from those with the smallest to largest p-values: CLC_AGE, HWBDBMI, CLC_SEX, LAB_BHG, and then SMK_12 or LAB_BCD.
+
 
 # Using a significance level of 0.05, we cannot reject the null hypothesis' that SMK_12 and LAB_BCD affect HIGHBP,
 # and thus leave them out of our model on the grounds of parsimony
@@ -166,89 +158,74 @@ summary(model_logit)
 # Test whether male and females share the same risk factors that affect HIGHBP
 # Split observations by gender, and test whether the same risk factors hold for both males and females
 model_male<- glm(HIGHBP ~ SMK_12+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data, subset = (study_data$CLC_SEX == 1))
-summary(model_male) 
+ drop1(model_male, test = "LRT")
 
-# For men, the only significant factor that influences HIGHBP (using a SL of 0.05) is CLC_AGE
 
 model_female<- glm(HIGHBP ~ SMK_12+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data, subset = (study_data$CLC_SEX == 2))
-summary(model_female) 
+drop1(model_female, test = "LRT")
 
 # For women, the significant factors are now CLC_AGE as well as HWMDBMI
 # Thus, we see that women and men do indeed experience different risk factors
 
-bestSubset_male = bestglm(study_data[study_data$CLC_SEX == 1, -c(1, 3, 8)], binomial(link = 'logit'), "AIC", TopModels = 10)
-bestSubset_male$Subsets
-
-bestSubset_female = bestglm(study_data[study_data$CLC_SEX == 2, -c(1, 3, 8)], binomial(link = 'logit'), "AIC", TopModels = 10)
-bestSubset_female$Subsets
-
-# However, AIC recommends for males only including CLC_AGE and HWMDBMI in the model, while for females it is 
-# CLC_AGE, HWMDBMI, and LAB_BHG
 
 
 
 # Do different ages experience different risk factors for HIGHBP?
 # Split the observations into three categories: Younger, Middle_Aged, and Older. Then test by category
-model_younger<- glm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data, subset = (study_data$CLC_AGE < 40))
-summary(model_younger) 
-
+model_younger<- glm(HIGHBP ~ SMK_12+CLC_SEX+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data, subset = (study_data$CLC_AGE < 40))
+drop1(model_younger, test = "LRT")
 # For the younger group, the significant factors are CLC_SEX and HWMDBMI (at a signficant level of 0.05)
 
-model_middleAged<- glm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data, subset = (study_data$CLC_AGE < 60&study_data$CLC_AGE >= 40))
-summary(model_middleAged) 
+model_middleAged<- glm(HIGHBP ~ SMK_12+CLC_SEX+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data, subset = (study_data$CLC_AGE >= 40&study_data$CLC_AGE < 60))
+drop1(model_middleAged, test = "LRT")
 
 # For the middle aged group, the only significant factor is now HWMDBMI
 
-model_older<- glm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data, subset = (study_data$CLC_AGE >= 60))
-summary(model_older) 
+model_older<- glm(HIGHBP ~ SMK_12+CLC_SEX+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data, subset = (study_data$CLC_AGE >= 60))
+drop1(model_older, test = "LRT")
 
 # For the older group, none of these factors are significant!
 # Thus, different age groups do experience different risk factors for HIGHBP.
 
-bestSubset_younger = bestglm(study_data[study_data$CLC_AGE < 40, -c(1, 4, 8)], binomial(link = 'logit'), "AIC", TopModels = 10)
-bestSubset_younger$Subsets
 
-# This group contains CLC_SEX, HWMDBMI, LAB_BCD, and LAB_BHG as predictors of HIGHBP
-
-bestSubset_middleAged = bestglm(study_data[study_data$CLC_AGE < 60&study_data$CLC_AGE >= 40, -c(1, 4, 8)], binomial(link = 'logit'), "AIC", TopModels = 10)
-bestSubset_middleAged$Subsets
-
-
-# This group contains only CLC_SEX and HWMDBMI as predictors of HIGHBP
-
-bestSubset_older = bestglm(study_data[study_data$CLC_AGE >= 60, -c(1, 4, 8)], binomial(link = 'logit'), "AIC", TopModels = 10)
-bestSubset_older$Subsets
-
-# This group contains SMK_12, HWMDBMI, and LAB_BHG as predictors
 
 
 #----------------------------------------------------------------------------------------------------------------
 # Redo analysis with survey weights
 # A quasibinomial model is fit to avoid an error about non-integer responses. This solution was recommended by the help files
 weighted_design = svydesign(ids = ~1, data = study_data, weights = study_data$WGT_FULL)  # used in design variable below
-weighted_glm = svyglm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = weighted_design, family = quasibinomial(link = 'logit'), data = study_data)
-summary(weighted_glm)
+model_weighted_logit = svyglm(HIGHBP ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = weighted_design, family = quasibinomial(link = 'logit'), data = study_data)
+drop1(model_weighted_logit, test = "LRT")
+
+# Test whether male and females share the same risk factors that affect HIGHBP
+# Split observations by gender, and test whether the same risk factors hold for both males and females
+model_weighted_male = svyglm(HIGHBP ~ SMK_12+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = weighted_design, family = quasibinomial(link = 'logit'), data = study_data, subset = (study_data$CLC_SEX == 1))
+drop1(model_weighted_male, test = "LRT")
+
+model_weighted_female = svyglm(HIGHBP ~ SMK_12+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = weighted_design, family = quasibinomial(link = 'logit'), data = study_data, subset = (study_data$CLC_SEX == 2))
+drop1(model_weighted_female, test = "LRT")
+
+# For women, the significant factors are now CLC_AGE as well as HWMDBMI
+# Thus, we see that women and men do indeed experience different risk factors
 
 
 
-#----------------------------------------------------------------------------------------------------------------
-# Ignore this part below
 
+# Do different ages experience different risk factors for HIGHBP?
+# Split the observations into three categories: Younger, Middle_Aged, and Older. Then test by category
+model_weighted_younger = svyglm(HIGHBP ~ SMK_12+CLC_SEX+HWMDBMI+LAB_BCD+LAB_BHG, design = weighted_design, family = quasibinomial(link = 'logit'), data = study_data, subset = (study_data$CLC_AGE < 40))
+drop1(model_weighted_younger, test = "LRT")
+# For the younger group, the significant factors are CLC_SEX and HWMDBMI (at a signficant level of 0.05)
 
-# Split data into training and test data
-training = sample_frac(study_data, 0.8)
-testing = filter(study_data, !(CLINICID %in% training$CLINICID))
+model_weighted_middleAged = svyglm(HIGHBP ~ SMK_12+CLC_SEX+HWMDBMI+LAB_BCD+LAB_BHG, design = weighted_design, family = quasibinomial(link = 'logit'), data = study_data, subset = (study_data$CLC_AGE >= 40&study_data$CLC_AGE < 60))
+drop1(model_weighted_middleAged, test = "LRT")
 
-# Model the response (HIGHBP) as having a Bernoulli distribution, and assume link function has the logit form
-model_logit = glm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), training)
-predicted_probabilities_logit = predict(model_logit, testing, type = "response")
-test_error_logit = (sum(predicted_probabilities_logit < 0.5 & testing$HIGHBP == 2) + sum(predicted_probabilities_logit >= 0.5 & testing$HIGHBP == 1))/nrow(testing)
+# For the middle aged group, the only significant factor is now HWMDBMI
 
-model_probit = glm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'probit'), study_data)
-predicted_probabilities_probit = predict(model_probit, testing, type = "response")
-test_error_probit = (sum(predicted_probabilities_probit < 0.5 & testing$HIGHBP == 2) + sum(predicted_probabilities_probit >= 0.5 & testing$HIGHBP == 1))/nrow(testing)
+model_weighted_older = svyglm(HIGHBP ~ SMK_12+CLC_SEX+HWMDBMI+LAB_BCD+LAB_BHG, design = weighted_design, family = quasibinomial(link = 'logit'), data = study_data, subset = (study_data$CLC_AGE >= 60))
+drop1(model_weighted_older, test = "LRT")
 
-model_cloglog = glm(as.factor(HIGHBP) ~ as.factor(SMK_12)+as.factor(CLC_SEX)+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'cloglog'), study_data)
-predicted_probabilities_cloglog = predict(model_cloglog, testing, type = "response")
-test_error_cloglog = (sum(predicted_probabilities_cloglog < 0.5 & testing$HIGHBP == 2) + sum(predicted_probabilities_cloglog >= 0.5 & testing$HIGHBP == 1))/nrow(testing)
+# For the older group, none of these factors are significant!
+# Thus, different age groups do experience different risk factors for HIGHBP.
+
 
