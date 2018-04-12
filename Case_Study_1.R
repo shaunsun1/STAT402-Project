@@ -4,9 +4,9 @@ library(caret)  # used for knn and cross-validation
 library(car)  # calculates VIF to check for multicollinearity
 library(ResourceSelection)  # Hosmer-Lemeshow goodness-of-fit test
 
-# Bring the chms_2018 dataset into R, and remove the bootstrap weights as they are not used in this analysis
+# Bring the chms_2018 dataset into R, and remove the weights as they are not used in this analysis
 study_data = read.csv("chms_2018.csv")
-study_data = select(study_data, -starts_with("BS"))
+study_data = select(study_data, -starts_with("BS"), -starts_with("WGT"))
 
 # Make SMK_12 a factor
 study_data$SMK_12 = as.factor(study_data$SMK_12)
@@ -64,24 +64,18 @@ ctrl <- trainControl(method="cv", number = 5)
 
 # Using HWMDBMI as the response variable, find the best value of K using as the training set only the observations 
 # that have no missing values
-knn_HWMDBMI <- train(HWMDBMI ~ . -CLINICID-WGT_FULL, data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
-ggplot(mapping = aes(predict(knn_HWMDBMI, study_data[is.na(study_data$HWMDBMI),]))) + geom_histogram()
-ggplot(study_data, aes(HWMDBMI)) +geom_histogram()
+knn_HWMDBMI <- train(HWMDBMI ~ . -CLINICID, data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
 # Estimate the missing values in HWMDBMI
 study_data$HWMDBMI[is.na(study_data$HWMDBMI)] = predict(knn_HWMDBMI, study_data[is.na(study_data$HWMDBMI),])
 
 # Repeat the above steps for the other variables with missing data
-knn_LAB_BCD <- train(LAB_BCD ~ . -CLINICID-WGT_FULL, data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
-ggplot(mapping = aes(predict(knn_LAB_BCD, study_data[is.na(study_data$LAB_BCD),]))) + geom_histogram()
-ggplot(study_data, aes(LAB_BCD)) +geom_histogram()
+knn_LAB_BCD <- train(LAB_BCD ~ . -CLINICID, data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
 study_data$LAB_BCD[is.na(study_data$LAB_BCD)] = predict(knn_LAB_BCD, study_data[is.na(study_data$LAB_BCD),])
 
-knn_LAB_BHG <- train(LAB_BHG ~ . -CLINICID-WGT_FULL, data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
-ggplot(mapping = aes(predict(knn_LAB_BHG, study_data[is.na(study_data$LAB_BHG),]))) + geom_histogram()
-ggplot(study_data, aes(LAB_BHG)) +geom_histogram()
+knn_LAB_BHG <- train(LAB_BHG ~ . -CLINICID, data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
 study_data$LAB_BHG[is.na(study_data$LAB_BHG)] = predict(knn_LAB_BHG, study_data[is.na(study_data$LAB_BHG),])
 
-knn_SMK_12 <- train(SMK_12 ~ . -CLINICID-WGT_FULL, data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
+knn_SMK_12 <- train(SMK_12 ~ . -CLINICID, data = study_data, subset = (multiple_missing == 0), method = "knn", preProcess = c("center","scale"), trControl = ctrl, tuneLength = 30)
 study_data$SMK_12[is.na(study_data$SMK_12)] = predict(knn_SMK_12, study_data[is.na(study_data$SMK_12),])
 
 sum(is.na(study_data))  # 0 missing values
@@ -132,9 +126,10 @@ pvalues_probit = unlist(pvalues_probit)
 pvalues_cloglog = unlist(pvalues_cloglog)
 
 # Plot distribution of Hosmer-Lemeshow statistics
-ggplot(mapping = aes(x = "Logit",  y = pvalues_logit)) + geom_boxplot()
-ggplot(mapping = aes(x = "Probit", y = pvalues_probit)) + geom_boxplot()
-ggplot(mapping = aes(x = "Cloglog", y = pvalues_cloglog)) + geom_boxplot()
+ggplot(mapping = aes(x = factor(rep(c("Logit", "Probit", "Cloglog"),  each = 51), levels = c("Logit", "Probit", "Cloglog")),  y = c(pvalues_logit, pvalues_probit, pvalues_cloglog))) + 
+  geom_boxplot() +
+  xlab("Link Functions") + ylab("P-values") + ggtitle("Different Link Functions Result in Similiar P-values for Hosmer-Lemeshow Statistic") +
+  scale_y_continuous(breaks = c(0.2, 0.4, 0.6, 0.8), limits = c(0, 1))
 
 # As can be seen from the graphs, all three models produce similiar Hosmer-Lemeshow statistics, suggesting that they all 
 # fit the sample about as well. Additionally, there AIC values are all quite similiar, again suggesting that they all fit 
@@ -178,14 +173,14 @@ drop1(model_logit, test = "LRT")
 # Test whether male and females share the same risk factors that affect HIGHBP
 # To to this, we test whether the interaction terms between CLC_SEX and other variables are non-zero
 model_gender = update(model_logit, ~ .+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE_CAT+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
-anova(model_logit, model_gender)
-pchisq(6.5599, 7, lower.tail = FALSE)
+anova_gender = anova(model_logit, model_gender)
+pchisq(anova_gender$Deviance[2], anova_gender$Df[2], lower.tail = FALSE)
 
-# Thus, we cannot reject the conclusion that different genders experience the same risk factors for HIGHBP
+# We do not have very much evidence at all that different genders experience difference risk factors for HIGHBP.
 
 # Test whether age affects the risk factors for HIGHBP
 model_age = update(model_logit, ~ .+CLC_AGE_CAT:SMK_12+CLC_AGE_CAT:CLC_SEX+CLC_AGE_CAT:HWMDBMI+CLC_AGE_CAT:LAB_BCD+CLC_AGE_CAT:LAB_BHG)
-anova(model_logit, model_age)
-pchisq(12.844, 12, lower.tail = FALSE)
+anova_age = anova(model_logit, model_age)
+pchisq(anova_age$Deviance[2], anova_age$Df[2], lower.tail = FALSE)
 
-# Similiar to above, we cannot reject the conclusion that different ages experience the same risk factors for HIGHBP
+# Similiar to above, we have only weak evidence that different ages have different risk factors for HIGHBP.
