@@ -16,17 +16,15 @@ study_data$SMK_12 = as.factor(study_data$SMK_12)
 seed1 = 336741157
 seed2 = 874515716
 
-
 #----------------------------------------------------------------------------------------------------------------
 # The values for LAB_BCD and LAB_BHG have been set to 999.5 when the patients recorded values are too low to 
-# be measured (ie. they are below the LOD)
-# First understand how common this is
+# be measured (ie. they are below the LOD). First understand how common this is
 BCD_LOD = sum(study_data$LAB_BCD == 999.5, na.rm = TRUE)  
 BCD_LOD  # 999.5 appears 54 times in LAB_BCD
 BHG_LOD = sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)
 BHG_LOD  # 999.5 appears 599 times in LAB_BHG
 
-# The values below the LOD are replaced with randomly drawn elements from the interval (0, LOD); this is called jittering.
+# The values below the LOD are replaced with randomly drawn elements from the interval (0, LOD); this is called jittering
 set.seed(seed1)
 study_data$LAB_BCD[study_data$LAB_BCD == 999.5 & !is.na(study_data$LAB_BCD)] = runif(BCD_LOD, 0, 0.71)
 set.seed(seed2)
@@ -39,8 +37,6 @@ sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_B
 
 #----------------------------------------------------------------------------------------------------------------
 # Use K-Nearest-Neighbors (KNN) to estimate missing values
-# We've assumed here that the missing values have been determined randomly
-
 # Check how many missing values there are in this data set
 sum(is.na(study_data))  # 175 missing values
 
@@ -82,43 +78,69 @@ sum(is.na(study_data))  # 0 missing values
 
 
 #----------------------------------------------------------------------------------------------------------------
-# Now that all missing values are estimated, we can create a model that predicts HIGHBP
-# Start by exploring the relationships between HIGHBP and each individual continuous variable
+ggplot(study_data, aes(cut_number(CLC_AGE, 20), fill = factor(HIGHBP))) + 
+  geom_bar(position = position_fill(reverse = TRUE)) +
+  xlab("Age") + 
+  ylab("Proportion of HIGHBP") + 
+  ggtitle("Age Affects HIGHBP in Three Distinct Sections") +
+  scale_fill_discrete(name = "Has Hypertension?", labels = c("Yes", "No")) +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
 
-ggplot(study_data, aes(cut_number(CLC_AGE, 20), fill = factor(HIGHBP))) + geom_bar(position = "fill")
+ggplot(study_data, aes(cut_number(HWMDBMI, 20), fill = factor(HIGHBP))) + 
+  geom_bar(position = position_fill(reverse = TRUE)) +
+  xlab("HWMDBMI") + 
+  ylab("Proportion of HIGHBP") + 
+  ggtitle("Relationship between HWMDBMI and HIGHBP is Roughly Linear") +  
+  scale_fill_discrete(name = "Has Hypertension?", labels = c("Yes", "No")) +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
 
-# It looks like the effect of CLC_AGE on HIGHBP occurs in three distinct sections. Thus, we try making CLC_AGE into
-# a categorical variable with three levels
+ggplot(study_data, aes(cut_number(LAB_BCD, 20), fill = factor(HIGHBP))) + 
+  geom_bar(position = position_fill(reverse = TRUE)) +
+  xlab("LAB_BCD") + 
+  ylab("Proportion of HIGHBP") +
+  ggtitle("Relationship between LAB_BCD and HIGHBP is Roughly Linear") +
+  scale_fill_discrete(name = "Has Hypertension?", labels = c("Yes", "No")) +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+
+ggplot(study_data, aes(cut_number(LAB_BHG, 20), fill = factor(HIGHBP))) + 
+  geom_bar(position = position_fill(reverse = TRUE)) +
+  xlab("LAB_BHG") + 
+  ylab("Proportion of HIGHBP") +
+  ggtitle("Relationship between LAB_BHG and HIGHBP is Roughly Linear") +
+  scale_fill_discrete(name = "Has Hypertension?", labels = c("Yes", "No")) +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+
+
+#----------------------------------------------------------------------------------------------------------------
+# Make CLC_AGE into a categorical variable with three levels, and add this to our data frame
 study_data = mutate(study_data, CLC_AGE_CAT = as.factor(cut_width(study_data$CLC_AGE, 20, boundary = 20, closed = "left")))
 
-ggplot(study_data, aes(cut_number(HWMDBMI, 20), fill = factor(HIGHBP))) + geom_bar(position = "fill")
-ggplot(study_data, aes(cut_number(LAB_BCD, 20), fill = factor(HIGHBP))) + geom_bar(position = "fill")
-ggplot(study_data, aes(cut_number(LAB_BHG, 20), fill = factor(HIGHBP))) + geom_bar(position = "fill")
-# No higher order terms are needed for HWMDBMI, LAB_BCD, and LAB_BHG
-
-# Three models are built each using a different link function. All of them model the response (HIGHBP) as a bernoulli random variable
-
-# Assumes log odds link function
+# Uses log odds link function
 model_logit = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data)
 
-# Assumes inverse CDF of standard Normal distribution link function
+# Uses inverse CDF of standard Normal distribution link function
 model_probit = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'probit'), study_data)
 
-# Assumes complimentary log-log link function
+# Uses complimentary log-log link function
 model_cloglog = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'cloglog'), study_data)
 
-# To check how well these models fit the sample data, the Deviance or the Chi-Squared statistic would normally be used
-# However, our model includes continuous explanatory variables, which means these statistics will not follow their 
-# theoretical asymptotic distributions. To get around this, the Hosmer-Lemeshow statistic is used instead, 
-# as suggested by our class textbook (page 136). 
 
-# Unfortunately, the Hosmer-Lemeshow statistic is sensitive to the number of groups the data is split into
-# Thus, we calculate this statistic repeatedly, letting the number of groups vary between 10 and 60
-# If this statistic is to be used at all, it seems like a process simliliar to this would be necessary
+#----------------------------------------------------------------------------------------------------------------
+# See that the minimum estimated probabilities that HIGHBP=2 are all greater than 10%
+min(fitted.values(model_logit))
+min(fitted.values(model_probit))
+min(fitted.values(model_cloglog))
+
+# The minimum estimated probabilities that HIGHBP=1 are also greater than 10%
+max(fitted.values(model_logit))
+max(fitted.values(model_probit))
+max(fitted.values(model_cloglog))
 
 # Calculate the Hosmer-Lemeshow statistic multiple times for each of the three models
 pvalues_logit = sapply(X = seq(10, 60, 1), FUN = hoslem.test, x = model_logit$y, y = fitted.values(model_logit))["p.value",]
+
 pvalues_probit = sapply(X = seq(10, 60, 1), FUN = hoslem.test, x = model_probit$y, y = fitted.values(model_probit))["p.value",]
+
 pvalues_cloglog = sapply(X = seq(10, 60, 1), FUN = hoslem.test, x = model_cloglog$y, y = fitted.values(model_cloglog))["p.value",]
 
 pvalues_logit = unlist(pvalues_logit)
@@ -128,59 +150,33 @@ pvalues_cloglog = unlist(pvalues_cloglog)
 # Plot distribution of Hosmer-Lemeshow statistics
 ggplot(mapping = aes(x = factor(rep(c("Logit", "Probit", "Cloglog"),  each = 51), levels = c("Logit", "Probit", "Cloglog")),  y = c(pvalues_logit, pvalues_probit, pvalues_cloglog))) + 
   geom_boxplot() +
-  xlab("Link Functions") + ylab("P-values") + ggtitle("Different Link Functions Result in Similiar P-values for Hosmer-Lemeshow Statistic") +
-  scale_y_continuous(breaks = c(0.2, 0.4, 0.6, 0.8), limits = c(0, 1))
+  xlab("Link Functions") + 
+  scale_y_continuous("P-values", c(0.2, 0.4, 0.6, 0.8), limits = c(0, 1)) +
+  ggtitle("Different Link Functions have Similiar P-values for Hosmer-Lemeshow Statistic") +
+  theme(plot.title = element_text(hjust = 0.5))
 
-# As can be seen from the graphs, all three models produce similiar Hosmer-Lemeshow statistics, suggesting that they all 
-# fit the sample about as well. Additionally, there AIC values are all quite similiar, again suggesting that they all fit 
-# roughly the same. Since we find the Logit model easier to interpret however, we will use exclusively this model
-# for the rest of the analysis
-
-# We first start by checking whether making CLC_AGE into a categorical variable was a good idea. We fit both models, 
-# and compare their AIC.
+#----------------------------------------------------------------------------------------------------------------
+# Look at two models, one with CLC_AGE and one with CLC_AGE_CAT, and compare their AIC.
 summary(model_logit)
 summary(update(model_logit, ~ . -CLC_AGE_CAT+CLC_AGE))
 
-# Even with the extra parameter, the model with CLC_AGE_CAT has a smaller AIC value than the model with CLC_AGE
-# Thus, we leave CLC_AGE_CAT in the model
-
-# Before drawing conclusions, check model validity
-
-# Calculate the Generalized Variance Inflation Factors (GVIF) for each predictor to check for multicollinearity
-vif(model_logit)  
-
-# All of these values are close to 1, so we conclude that there is essentially no multicollinearity between the 
-# variables
+# Calculate the Generalized Variance Inflation Factors (GVIF) for each predictor
+vif(model_logit) 
 
 # Build residual plot
-ggplot(mapping = aes(model_logit$linear.predictors, residuals(model_logit, "pearson"))) + geom_point()
-
-# Because the number of unique covariate patterns equals the number of observations, this plot does not seem very imformative 
-
-# Thus, we accept our model as being a reasonable approximation of reality
-
-# To check whether a variable has a "significant" effect on the response HIGHBP, we remove each variable in turn 
-# and compare the difference in deviance statistics. Even with sparse data such as ours, this difference in 
-# deviance should still approximate a chi-square distribution with low d.f
-drop1(model_logit, test = "LRT")
-
-# Given that all variables are in the model, there is strong evidence that SEX, AGE, and BMI influence HIGHBP, 
-# and weaker evidence that LAB_BHG and SMK_12 affect HIGHBP. It is inconclusive however whether LAB_BCD affects HIGHBP,
-# given the other variables are in the model.
- 
+ggplot(mapping = aes(model_logit$linear.predictors, residuals(model_logit, "pearson"))) + 
+  geom_point() +
+  xlab("Predicted Log Odds Ratio") + ylab("Pearson Residuals") +
+  ggtitle("Residual Plot with No Replicates is Uninformative") +
+  theme(plot.title = element_text(hjust = 0.5))
 
 #----------------------------------------------------------------------------------------------------------------
-# Test whether male and females share the same risk factors that affect HIGHBP
-# To to this, we test whether the interaction terms between CLC_SEX and other variables are non-zero
-model_gender = update(model_logit, ~ .+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE_CAT+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
-anova_gender = anova(model_logit, model_gender)
-pchisq(anova_gender$Deviance[2], anova_gender$Df[2], lower.tail = FALSE)
+drop1(model_logit, test = "LRT")
 
-# We do not have very much evidence at all that different genders experience difference risk factors for HIGHBP.
+# Test whether the interaction terms between CLC_SEX and other variables are non-zero
+model_gender = update(model_logit, ~ . + CLC_SEX:SMK_12 + CLC_SEX:CLC_AGE_CAT + CLC_SEX:HWMDBMI + CLC_SEX:LAB_BCD + CLC_SEX:LAB_BHG)
+drop1(model_gender, test = "LRT")
 
-# Test whether age affects the risk factors for HIGHBP
-model_age = update(model_logit, ~ .+CLC_AGE_CAT:SMK_12+CLC_AGE_CAT:CLC_SEX+CLC_AGE_CAT:HWMDBMI+CLC_AGE_CAT:LAB_BCD+CLC_AGE_CAT:LAB_BHG)
-anova_age = anova(model_logit, model_age)
-pchisq(anova_age$Deviance[2], anova_age$Df[2], lower.tail = FALSE)
-
-# Similiar to above, we have only weak evidence that different ages have different risk factors for HIGHBP.
+# Test whether the interaction terms between CLC_AGE_CAT and other variables are non-zero
+model_age = update(model_logit, ~ . + CLC_AGE_CAT:SMK_12 + CLC_AGE_CAT:CLC_SEX + CLC_AGE_CAT:HWMDBMI + CLC_AGE_CAT:LAB_BCD + CLC_AGE_CAT:LAB_BHG)
+drop1(model_age, test = "LRT")
