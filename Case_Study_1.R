@@ -239,6 +239,9 @@ model_with_weights = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDB
 # 2) In svrepdesign function, not specifying repweights produces the warning: 'You must provide replication weights' 
 #    Why is this?
 
+#    I'm guessing that since replication weights are needed to estimate the variance of estimators, instead of just returning
+#    point estimates without any kind of measure of error (which would be useless), the function just creates a warning
+
 # 3) In svyglm function, letting family = binomial() produces the warning: 'In eval(family$initialize) : non-integer #successes in a binomial glm!'
 #    Both the svyglm help file and the survey author's textbook (p.110) recommend using family = quasibinomial() to avoid these warnings, but no clear rationale is given
 
@@ -246,7 +249,7 @@ model_with_weights = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDB
 
 # 5) According to survey author's textbook (p.98), svyglm() does not seem to use maximum likelihood to estimate parameters,
 #    and author concludes that we can't use likelihood ratio tests to compare nested models, but should use Wald statistic instead
-#    So many questions here
+#    Not sure if this is just for linear regression, or for logistic regression as well.
 
 # Hopefully, working through some of the author's analyzed datasets will provide some of these answers
 
@@ -258,3 +261,33 @@ summary(model_with_weights)
 
 # Shows references that the survey package relies on
 citation('survey')
+
+
+#----------------------------------------------------------------------------------------------------------------
+# Experiments
+
+# 1) Build different svyglm models using both sampling and replication weights, but using different kinds of replication weights
+# Should get same point estimates, but different variances
+
+test_design_1 = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
+test_model_1 = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1, family = quasibinomial(), data = study_data)
+summary(test_model_1)
+
+test_design_2 = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
+test_model_2 = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2, family = quasibinomial(), data = study_data)
+summary(test_model_2)
+
+test_design_3 = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other')
+test_model_3 = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_3, family = quasibinomial(), data = study_data)
+summary(test_model_3)
+
+# And that is exactly what we see!
+
+# 2) It was suggested that the sampling weights WGT_FULL might be measured in thousands or something, thus making them integers.
+#    To test this, remember that these weights represent the number of Canadians that each person in the sample represent.
+#    Thus, if a weight of 1 represents one person, the sum of these weights should equal about 30 million
+
+sum(study_data$WGT_FULL)
+
+# Which is what we get. So it seems like the weights are not scaled and are not integers. So using glm() with weights is
+# not appropriate
