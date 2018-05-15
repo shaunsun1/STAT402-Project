@@ -220,7 +220,7 @@ drop1(model_age, test = "LRT")
 
 #----------------------------------------------------------------------------------------------------------------
 # Try to use glm function to take into account survey weights
-model_logit_weights = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, family=binomial(), study_data, WGT_FULL)
+model_logit_weighted = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, family=binomial(), study_data, WGT_FULL)
 
 # This gives us warning messages however
 # The 'weights' variable in the glm function is the number of trials for each observation (according to glm() help page), 
@@ -229,12 +229,17 @@ model_logit_weights = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI
 # Instead, use the package 'survey'
 # Here, 'weights' represent the sample weights, and 'repweights' are the replicate weights 
 glm_design = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
-model_with_weights = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
+model_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
 
 # There are many questions that need to be answered though about these functions:
 
 # 1) In svrepdesign function, are the replication weights (our bootstrap weights) really of type 'bootstrap'? (see help page)
-#    Need to better understand what Canadian Health Measures Survey means by 'bootstrap weights', and what author of survey package means by 'boostrap' replication weights
+#    Need to better understand what Canadian Health Measures Survey (CHMS) means by 'bootstrap weights', and what author of survey package means by 'boostrap' replication weights
+
+#    First talk about how variance is calculated (p. 240 and in section 2.3 of text)
+#    From 'The Rao-Wu Rescaling Bootstrap: From theory to practice' (on github), seems likely that StatsCan uses the Rao-Wu rescaled bootstrap for the CHMS
+#    as.svyrepdesign() seems to confirm that type = 'bootstrap' in svyrepdesign() can refer to Rao and Wu's rescaled boostrap
+#    Section 2.3 mentions what scale in svrepdesign() should be for bootstrap. This understanding is tested in experiments section
 
 # 2) In svrepdesign function, not specifying repweights produces the warning: 'You must provide replication weights' 
 #    Why is this?
@@ -245,22 +250,31 @@ model_with_weights = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDB
 # 3) In svyglm function, letting family = binomial() produces the warning: 'In eval(family$initialize) : non-integer #successes in a binomial glm!'
 #    Both the svyglm help file and the survey author's textbook (p.110) recommend using family = quasibinomial() to avoid these warnings, but no clear rationale is given
 
-# 4) In svrepdesign function, what do we provide for combined.weights, scale, fpc, etc?
-
-# 5) According to survey author's textbook (p.98), svyglm() does not seem to use maximum likelihood to estimate parameters,
+# 4) According to survey author's textbook (p.98), svyglm() does not seem to use maximum likelihood to estimate parameters,
 #    and author concludes that we can't use likelihood ratio tests to compare nested models, but should use Wald statistic instead
 #    Not sure if this is just for linear regression, or for logistic regression as well.
 
 # Hopefully, working through some of the author's analyzed datasets will provide some of these answers
 
 # Compute Wald statistics 
-summary(model_with_weights)
+summary(model_weighted)
 
 # According to the Wald Statistics, Age, HWMDBMI, Sex, and LAB_BHG have the lowest p-values. Everything else has high p-values
 # This gives similiar p-values to when weights were not used
 
-# Shows references that the survey package relies on
-citation('survey')
+# Can we use likelihood ratio test?
+drop1(model_weighted, test = "LRT")
+
+# We get very strange results (Very high p-values). Perhaps we cannot use deviance to compare nested models?
+
+# Test gender and age interaction effects
+model_gender_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE_CAT+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
+regTermTest(model_gender_weighted, ~CLC_SEX:SMK_12+CLC_SEX:CLC_AGE_CAT+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
+summary(model_gender_weighted)
+
+model_age_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG+CLC_AGE_CAT:SMK_12+CLC_AGE_CAT:CLC_SEX+CLC_AGE_CAT:HWMDBMI+CLC_AGE_CAT:LAB_BCD+CLC_AGE_CAT:LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
+regTermTest(model_age_weighted, ~CLC_AGE_CAT:SMK_12+CLC_AGE_CAT:CLC_SEX+CLC_AGE_CAT:HWMDBMI+CLC_AGE_CAT:LAB_BCD+CLC_AGE_CAT:LAB_BHG)
+summary(model_age_weighted)
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -269,17 +283,17 @@ citation('survey')
 # 1) Build different svyglm models using both sampling and replication weights, but using different kinds of replication weights
 # Should get same point estimates, but different variances
 
-test_design_1 = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
-test_model_1 = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1, family = quasibinomial(), data = study_data)
-summary(test_model_1)
+test_design_1a = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
+test_model_1a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1a, family = quasibinomial(), data = study_data)
+summary(test_model_1a)
 
-test_design_2 = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
-test_model_2 = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2, family = quasibinomial(), data = study_data)
-summary(test_model_2)
+test_design_1b = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
+test_model_1b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1b, family = quasibinomial(), data = study_data)
+summary(test_model_1b)
 
-test_design_3 = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other')
-test_model_3 = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_3, family = quasibinomial(), data = study_data)
-summary(test_model_3)
+test_design_1c = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other')
+test_model_1c = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1c, family = quasibinomial(), data = study_data)
+summary(test_model_1c)
 
 # And that is exactly what we see!
 
@@ -291,3 +305,24 @@ sum(study_data$WGT_FULL)
 
 # Which is what we get. So it seems like the weights are not scaled and are not integers. So using glm() with weights is
 # not appropriate
+
+# 3) As described on p. 25 of survey textbook, using type = 'BRR' in svyrepdesign() gives same summary() results as 
+#    using type = 'other' and scale = 1/500
+
+test_design_2a = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
+test_model_2a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2a, family = quasibinomial(), data = study_data)
+summary(test_model_2a)
+
+test_design_2b = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/500, rscales = rep.int(1, 500))
+test_model_2b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2b, family = quasibinomial(), data = study_data)
+summary(test_model_2b)
+
+# Using type = 'bootstrap' gives same summary() results as using type = 'other' and scale = 1/499
+
+test_design_2c = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
+test_model_2c = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2c, family = quasibinomial(), data = study_data)
+summary(test_model_2c)
+
+test_design_2d = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/499, rscales = rep.int(1, 500))
+test_model_2d = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2d, family = quasibinomial(), data = study_data)
+summary(test_model_2d)
