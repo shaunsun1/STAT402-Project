@@ -133,18 +133,18 @@ ggplot(study_data, aes(cut_number(LAB_BHG, 20), fill = factor(HIGHBP))) +
 
 #----------------------------------------------------------------------------------------------------------------
 # Make CLC_AGE into a categorical variable with three levels, and add this to our data frame
-study_data = mutate(study_data, CLC_AGE_CAT = as.factor(cut_width(study_data$CLC_AGE, 20, boundary = 20, closed = "left")))
-study_data = study_data[, c(1:8, 510, 9:509)]  # Reorder study_data columns to make life easier
+#study_data = mutate(study_data, CLC_AGE_CAT = as.factor(cut_width(study_data$CLC_AGE, 20, boundary = 20, closed = "left")))
+#study_data = study_data[, c(1:8, 510, 9:509)]  # Reorder study_data columns to make life easier
 
 # Build three models each using a different link function
 # Uses log odds link function
-model_logit = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data)
+model_logit = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data)
 
 # Uses inverse CDF of standard Normal distribution link function
-model_probit = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'probit'), study_data)
+model_probit = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'probit'), study_data)
 
 # Uses complimentary log-log link function
-model_cloglog = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'cloglog'), study_data)
+model_cloglog = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'cloglog'), study_data)
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -181,10 +181,6 @@ ggplot(mapping = aes(x = factor(rep(c("Logit", "Probit", "Cloglog"),  each = 51)
 #----------------------------------------------------------------------------------------------------------------
 # Continue model adequacy checking
 
-# Look at two models, one with CLC_AGE and one with CLC_AGE_CAT, and compare their AIC.
-summary(model_logit)
-summary(update(model_logit, ~ . -CLC_AGE_CAT+CLC_AGE))
-
 # Calculate the Generalized Variance Inflation Factors (GVIF) for each predictor
 vif(model_logit) 
 
@@ -201,37 +197,53 @@ ggplot(mapping = aes(model_logit$linear.predictors, residuals(model_logit, "pear
 drop1(model_logit, test = "LRT")
 
 # Even when taking into account the other variables in the model, there is strong evidence that sex, age, and 
-# body mass index influence average hypertension, and weaker evidence that blood mercury levels (LAB_BHG) and 
-# smoking status have an effect. It is inconclusive whether blood cadmium levels (LAB_BCD) affect average hypertension
+# body mass index influence average hypertension, and weaker evidence that blood mercury levels (LAB_BHG) has an effect. 
+# It is inconclusive whether smoking status or blood cadmium levels (LAB_BCD) affect average hypertension.
 
 # Test whether the interaction terms between CLC_SEX and other variables are non-zero
-model_gender = update(model_logit, ~ . + CLC_SEX:SMK_12 + CLC_SEX:CLC_AGE_CAT + CLC_SEX:HWMDBMI + CLC_SEX:LAB_BCD + CLC_SEX:LAB_BHG)
-drop1(model_gender, test = "LRT")
+model_gender = update(model_logit, ~ . +CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
+anova(model_logit, model_gender, test = 'LRT')
 
-# There is some weak evidence that the effect of body mass index on average hypertension does differ between genders, 
-# but little evidence that the effect of other variables differ by gender
+# Inconclusive whether any interaction effects are non-zero
 
-# Test whether the interaction terms between CLC_AGE_CAT and other variables are non-zero
-model_age = update(model_logit, ~ . + CLC_AGE_CAT:SMK_12 + CLC_AGE_CAT:CLC_SEX + CLC_AGE_CAT:HWMDBMI + CLC_AGE_CAT:LAB_BCD + CLC_AGE_CAT:LAB_BHG)
-drop1(model_age, test = "LRT")
+# Test whether the interaction terms between CLC_AGE and other variables are non-zero
+model_age = update(model_logit, ~ . +CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
+anova(model_logit, model_age, test = 'LRT')
 
-# There is little evidence here to suggest that the risk factors of hypertension differ on average between age groups
+# There is some weak evidence that the risk factors of hypertension differ on average between age groups
 
 
 #----------------------------------------------------------------------------------------------------------------
-# Try to use glm function to take into account survey weights
-model_logit_weighted = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, family=binomial(), study_data, WGT_FULL)
-
-# This gives us warning messages however
-# The 'weights' variable in the glm function is the number of trials for each observation (according to glm() help page), 
-# which is not what we want (at the very least because our weights are not integers)
-
-# Instead, use the package 'survey'
+# Use the package 'survey' to integrate weights into model
 # Here, 'weights' represent the sample weights, and 'repweights' are the replicate weights 
-glm_design = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
-model_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
+glm_design = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
+model_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
 
-# There are many questions that need to be answered though about these functions:
+# Since it seems likely that a weighted maximum likelihood method is being used to estimate parameters (see p. 268 of 
+# Fitting Regression Models to Survey Data), we cannot just use the regular likelihood ratio test
+# Use regTermTest() from survey package to perform hypothesis testing using the Rao-Scott working likelihood ratio test 
+# instead (see p.273 of same paper)
+
+# See Fitting Regression MOdels to Survey Data on github
+regTermTest(model_weighted, ~ SMK_12, method = 'LRT')
+regTermTest(model_weighted, ~ CLC_SEX, method = 'LRT')
+regTermTest(model_weighted, ~ CLC_AGE, method = 'LRT')
+regTermTest(model_weighted, ~ HWMDBMI, method = 'LRT')
+regTermTest(model_weighted, ~ LAB_BCD, method = 'LRT')
+regTermTest(model_weighted, ~ LAB_BHG, method = 'LRT')
+
+
+# Test gender interaction effects using a single hypothesis test
+model_gender_weighted = update(model_weighted, ~ .+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
+regTermTest(model_gender_weighted, ~ CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG, method = "LRT")
+
+# Test age interaction effects
+model_age_weighted = update(model_weighted, ~ .+CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
+regTermTest(model_age_weighted, ~ CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG, method = "LRT")
+
+
+#----------------------------------------------------------------------------------------------------------------
+# Some Questions to Think About
 
 # 1) In svrepdesign function, are the replication weights (our bootstrap weights) really of type 'bootstrap'? (see help page)
 #    Need to better understand what Canadian Health Measures Survey (CHMS) means by 'bootstrap weights', and what author of survey package means by 'boostrap' replication weights
@@ -239,7 +251,8 @@ model_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+L
 #    First talk about how variance is calculated (p. 240 and in section 2.3 of text)
 #    From 'The Rao-Wu Rescaling Bootstrap: From theory to practice' (on github), seems likely that StatsCan uses the Rao-Wu rescaled bootstrap for the CHMS
 #    as.svyrepdesign() seems to confirm that type = 'bootstrap' in svyrepdesign() can refer to Rao and Wu's rescaled boostrap
-#    Section 2.3 mentions what scale in svrepdesign() should be for bootstrap. This understanding is tested in experiments section
+#    Section 2.3 mentions what scale in svrepdesign() should be for bootstrap. From experiments below, scale seems to equal 500-1 for bootstrap method
+#    This agrees with 'Rescaled Bootstrap for stratified multistage sampling'
 
 # 2) In svrepdesign function, not specifying repweights produces the warning: 'You must provide replication weights' 
 #    Why is this?
@@ -254,28 +267,7 @@ model_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+L
 #    and author concludes that we can't use likelihood ratio tests to compare nested models, but should use Wald statistic instead
 #    Not sure if this is just for linear regression, or for logistic regression as well.
 
-# Hopefully, working through some of the author's analyzed datasets will provide some of these answers
-
-# Compute Wald statistics 
-summary(model_weighted)
-
-# According to the Wald Statistics, Age, HWMDBMI, Sex, and LAB_BHG have the lowest p-values. Everything else has high p-values
-# This gives similiar p-values to when weights were not used
-
-# Can we use likelihood ratio test?
-drop1(model_weighted, test = "LRT")
-
-# We get very strange results (Very high p-values). Perhaps we cannot use deviance to compare nested models?
-
-# Test gender and age interaction effects
-model_gender_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE_CAT+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
-regTermTest(model_gender_weighted, ~CLC_SEX:SMK_12+CLC_SEX:CLC_AGE_CAT+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
-summary(model_gender_weighted)
-
-model_age_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG+CLC_AGE_CAT:SMK_12+CLC_AGE_CAT:CLC_SEX+CLC_AGE_CAT:HWMDBMI+CLC_AGE_CAT:LAB_BCD+CLC_AGE_CAT:LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
-regTermTest(model_age_weighted, ~CLC_AGE_CAT:SMK_12+CLC_AGE_CAT:CLC_SEX+CLC_AGE_CAT:HWMDBMI+CLC_AGE_CAT:LAB_BCD+CLC_AGE_CAT:LAB_BHG)
-summary(model_age_weighted)
-
+#    Actually, I think svyglm() uses pseudo-likelihood estimation (see p. 268 of Fitting Regression Models to Survey Data)
 
 #----------------------------------------------------------------------------------------------------------------
 # Experiments
@@ -283,16 +275,16 @@ summary(model_age_weighted)
 # 1) Build different svyglm models using both sampling and replication weights, but using different kinds of replication weights
 # Should get same point estimates, but different variances
 
-test_design_1a = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
-test_model_1a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1a, family = quasibinomial(), data = study_data)
+test_design_1a = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
+test_model_1a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1a, family = quasibinomial(), data = study_data)
 summary(test_model_1a)
 
-test_design_1b = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
-test_model_1b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1b, family = quasibinomial(), data = study_data)
+test_design_1b = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
+test_model_1b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1b, family = quasibinomial(), data = study_data)
 summary(test_model_1b)
 
-test_design_1c = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other')
-test_model_1c = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1c, family = quasibinomial(), data = study_data)
+test_design_1c = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other')
+test_model_1c = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1c, family = quasibinomial(), data = study_data)
 summary(test_model_1c)
 
 # And that is exactly what we see!
@@ -306,23 +298,24 @@ sum(study_data$WGT_FULL)
 # Which is what we get. So it seems like the weights are not scaled and are not integers. So using glm() with weights is
 # not appropriate
 
-# 3) As described on p. 25 of survey textbook, using type = 'BRR' in svyrepdesign() gives same summary() results as 
-#    using type = 'other' and scale = 1/500
+# 3) As described on p. 25 of survey textbook, using type = 'BRR' in svyrepdesign() should automatically set scale ~ 1/500
+# Notice that using type = 'other' and scale 1/500 gives same summary() results as type = 'BBR'
 
-test_design_2a = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
-test_model_2a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2a, family = quasibinomial(), data = study_data)
+test_design_2a = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
+test_model_2a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2a, family = quasibinomial(), data = study_data)
 summary(test_model_2a)
 
-test_design_2b = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/500, rscales = rep.int(1, 500))
-test_model_2b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2b, family = quasibinomial(), data = study_data)
+test_design_2b = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/500, rscales = rep.int(1, 500))
+test_model_2b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2b, family = quasibinomial(), data = study_data)
 summary(test_model_2b)
 
-# Using type = 'bootstrap' gives same summary() results as using type = 'other' and scale = 1/499
+# As described on p. 25 of survey textbook, using type = 'bootstrap' in svyrepdesign() should automatically set scale ~ 1/500
+# Notice that using type = 'other' and scale 1/499 gives same summary() results as type = 'bootstrap'
 
-test_design_2c = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
-test_model_2c = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2c, family = quasibinomial(), data = study_data)
+test_design_2c = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
+test_model_2c = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2c, family = quasibinomial(), data = study_data)
 summary(test_model_2c)
 
-test_design_2d = svrepdesign(study_data[, c(2, 3, 5:9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/499, rscales = rep.int(1, 500))
-test_model_2d = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE_CAT+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2d, family = quasibinomial(), data = study_data)
+test_design_2d = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/499, rscales = rep.int(1, 500))
+test_model_2d = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2d, family = quasibinomial(), data = study_data)
 summary(test_model_2d)
