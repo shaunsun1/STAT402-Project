@@ -193,53 +193,74 @@ ggplot(mapping = aes(model_logit$linear.predictors, residuals(model_logit, "pear
 
 
 #----------------------------------------------------------------------------------------------------------------
-# Draw conclusions
-drop1(model_logit, test = "LRT")
-
-# Even when taking into account the other variables in the model, there is strong evidence that sex, age, and 
-# body mass index influence average hypertension, and weaker evidence that blood mercury levels (LAB_BHG) has an effect. 
-# It is inconclusive whether smoking status or blood cadmium levels (LAB_BCD) affect average hypertension.
-
-# Test whether the interaction terms between CLC_SEX and other variables are non-zero
-model_gender = update(model_logit, ~ . +CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
-anova(model_logit, model_gender, test = 'LRT')
-
-# Inconclusive whether any interaction effects are non-zero
-
-# Test whether the interaction terms between CLC_AGE and other variables are non-zero
-model_age = update(model_logit, ~ . +CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
-anova(model_logit, model_age, test = 'LRT')
-
-# There is some weak evidence that the risk factors of hypertension differ on average between age groups
-
-
-#----------------------------------------------------------------------------------------------------------------
 # Use the package 'survey' to integrate weights into model
 # Here, 'weights' represent the sample weights, and 'repweights' are the replicate weights 
 glm_design = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
 model_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
 
-# Since it seems likely that a weighted maximum likelihood method is being used to estimate parameters (see p. 268 of 
-# Fitting Regression Models to Survey Data), we cannot just use the regular likelihood ratio test
-# Use regTermTest() from survey package to perform hypothesis testing using the Rao-Scott working likelihood ratio test 
-# instead (see p.273 of same paper)
 
-# See Fitting Regression MOdels to Survey Data on github
-regTermTest(model_weighted, ~ SMK_12, method = 'LRT')
-regTermTest(model_weighted, ~ CLC_SEX, method = 'LRT')
-regTermTest(model_weighted, ~ CLC_AGE, method = 'LRT')
-regTermTest(model_weighted, ~ HWMDBMI, method = 'LRT')
-regTermTest(model_weighted, ~ LAB_BCD, method = 'LRT')
-regTermTest(model_weighted, ~ LAB_BHG, method = 'LRT')
+#----------------------------------------------------------------------------------------------------------------
+# Draw conclusions about individual parameters for unweighted and weighted model
 
+# Show parameter and variance estimates for unweighted model. The wald test is shown below
+summary(model_logit)
 
-# Test gender interaction effects using a single hypothesis test
+# For unweighted model, use usual likelihood ratio test
+drop1(model_logit, test = "LRT")
+
+# Since it seems likely that a weighted maximum likelihood method is being used to estimate parameters (see p. 268 of Fitting 
+# Regression Models to Survey Data), we cannot just use the regular likelihood ratio test. Use regTermTest() from survey 
+# package to perform hypothesis testing using the Rao-Scott working likelihood ratio test instead (see p.273 of same paper)
+
+# Combine estimated model coefficients, standard errors, and Rao-Scott p-values in one table to make life easier
+weighted_likelihood_tests = as.data.frame(summary(model_weighted)$coefficients) %>%
+  select('Estimate', 'Std. Error') %>%
+  rownames_to_column("Variable") %>%
+  mutate('p_value' = rep(NA, 8))
+
+weighted_likelihood_tests[2, 'p_value'] = regTermTest(model_weighted, 'SMK_12', method = 'LRT')$p
+for(i in c(4:8)) {
+  weighted_likelihood_tests[i, 'p_value'] = regTermTest(model_weighted, weighted_likelihood_tests$Variable[i], method = 'LRT')$p
+}
+
+weighted_likelihood_tests  # p-values from Rao-Scott working likelihood ratio test
+
+# For both unweighted and weighted models, even when taking into account the other variables in the model, there is strong 
+# evidence that sex, age, and body mass index influence average hypertension, and weaker evidence that blood mercury levels 
+# (LAB_BHG) has an effect. It is inconclusive whether smoking status or blood cadmium levels (LAB_BCD) affect average hypertension.
+
+# The p-values for weighted model do seem to be a bit more 'extreme' than those from unweighted model
+# ie. large p-values from unweighted model tend to be even larger in weighted model, and small p-values from unweighted 
+# model tend to be even smaller
+
+# Notice that both unweighted and weighted models have similiar parameter estimates and std.error estimates,
+# though std. errors for weighted model seem to be a bit larger
+
+#----------------------------------------------------------------------------------------------------------------
+# Test whether interaction terms between CLC_SEX and other variables are non-zero, for both unweighted and weighted model
+
+# First check unweighted model using likelihood ratio test
+model_gender = update(model_logit, ~ . +CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
+anova(model_logit, model_gender, test = 'LRT')
+
+# Check weighted model using rao-scott working likelihood ratio test
 model_gender_weighted = update(model_weighted, ~ .+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
 regTermTest(model_gender_weighted, ~ CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG, method = "LRT")
 
-# Test age interaction effects
+# Inconclusive whether any interaction effects are non-zero, for both models
+
+#----------------------------------------------------------------------------------------------------------------
+# Test whether interaction terms between CLC_AGE and other variables are non-zero, for both unweighted and weighted model
+
+# First check unweighted model using likelihood ratio test
+model_age = update(model_logit, ~ . +CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
+anova(model_logit, model_age, test = 'LRT')
+
+# Check weighted model using rao-scott working likelihood ratio test
 model_age_weighted = update(model_weighted, ~ .+CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
 regTermTest(model_age_weighted, ~ CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG, method = "LRT")
+
+# There is some weak evidence that the risk factors of hypertension differ on average between age groups, for both models
 
 
 #----------------------------------------------------------------------------------------------------------------
