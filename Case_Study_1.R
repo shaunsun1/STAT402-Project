@@ -41,17 +41,21 @@ sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_B
 # Alternative method: Use survival analysis to estimate missing values!
 # Need to estimate both the distribution of the response, and also come up with an appropriate link function
 
-# Assuming limit of detection is same for all people, this is just left-censored data
 # Plot non-missing and non-censored values of LAB_BHG
 #ggplot(study_data[study_data$LAB_BHG < 900, ], aes(LAB_BHG)) + geom_histogram(binwidth = 2)
 
 # Do the same for LAB_BCD
 #ggplot(study_data[study_data$LAB_BCD < 900, ], aes(LAB_BCD)) + geom_histogram(binwidth = 1)
 
+# Both of these look like they may roughly follow a Weibull distribution
+
 # Plot weibull distributions with different parameters
 #ggplot(mapping = aes(rweibull(3000, shape = 1, scale = 15))) + geom_histogram(binwidth = 2)
 
 # Not done yet...
+
+#simple_random_sample = svydesign(~1, variables = study_data[, 2:8], data = study_data)
+#svykm(LAB_BHG ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+HIGHBP+LAB_BCD, simple_random_sample)
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -132,11 +136,8 @@ ggplot(study_data, aes(cut_number(LAB_BHG, 20), fill = factor(HIGHBP))) +
 
 
 #----------------------------------------------------------------------------------------------------------------
-# Make CLC_AGE into a categorical variable with three levels, and add this to our data frame
-#study_data = mutate(study_data, CLC_AGE_CAT = as.factor(cut_width(study_data$CLC_AGE, 20, boundary = 20, closed = "left")))
-#study_data = study_data[, c(1:8, 510, 9:509)]  # Reorder study_data columns to make life easier
-
 # Build three models each using a different link function
+
 # Uses log odds link function
 model_logit = glm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, binomial(link = 'logit'), study_data)
 
@@ -202,28 +203,36 @@ model_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_B
 #----------------------------------------------------------------------------------------------------------------
 # Draw conclusions about individual parameters for unweighted and weighted model
 
-# Show parameter and variance estimates for unweighted model. The wald test is shown below
-summary(model_logit)
+# Returns a dataframe with two columns: parameter estimates and std. errors for the given model
+param_estimates = function(model) {
+  return(as.data.frame(summary(model)$coefficients) %>%
+           select('Estimate', 'Std. Error') %>%
+           rownames_to_column("Variable") %>%
+           mutate('p_value' = rep(NA, nrow(.))))
+}
 
-# For unweighted model, use usual likelihood ratio test
-drop1(model_logit, test = "LRT")
+# For logit model, create dataframe containing MLE estimates and s.e's for parameters
+logit_likelihood_tests = param_estimates(model_logit)
+
+# Add likelihood ratio statistic p-values to the above dataframe
+logit_likelihood_tests[3:8, 'p_value'] = as.data.frame(drop1(model_logit, test = "LRT"))[2:7, 'Pr(>Chi)']
+logit_likelihood_tests
+
+
 
 # Since it seems likely that a weighted maximum likelihood method is being used to estimate parameters (see p. 268 of Fitting 
 # Regression Models to Survey Data), we cannot just use the regular likelihood ratio test. Use regTermTest() from survey 
 # package to perform hypothesis testing using the Rao-Scott working likelihood ratio test instead (see p.273 of same paper)
 
-# Combine estimated model coefficients, standard errors, and Rao-Scott p-values in one table to make life easier
-weighted_likelihood_tests = as.data.frame(summary(model_weighted)$coefficients) %>%
-  select('Estimate', 'Std. Error') %>%
-  rownames_to_column("Variable") %>%
-  mutate('p_value' = rep(NA, 8))
+# For weighted logit model, create dataframe containing MLE estimates and s.e's for parameters
+weighted_likelihood_tests = param_estimates(model_weighted)
 
-weighted_likelihood_tests[2, 'p_value'] = regTermTest(model_weighted, 'SMK_12', method = 'LRT')$p
+# Add Rao-Scott working likelihood ratio p-values to the above dataframe
+weighted_likelihood_tests[3, 'p_value'] = regTermTest(model_weighted, 'SMK_12', method = 'LRT')$p
 for(i in c(4:8)) {
   weighted_likelihood_tests[i, 'p_value'] = regTermTest(model_weighted, weighted_likelihood_tests$Variable[i], method = 'LRT')$p
 }
-
-weighted_likelihood_tests  # p-values from Rao-Scott working likelihood ratio test
+weighted_likelihood_tests
 
 # For both unweighted and weighted models, even when taking into account the other variables in the model, there is strong 
 # evidence that sex, age, and body mass index influence average hypertension, and weaker evidence that blood mercury levels 
@@ -236,31 +245,67 @@ weighted_likelihood_tests  # p-values from Rao-Scott working likelihood ratio te
 # Notice that both unweighted and weighted models have similiar parameter estimates and std.error estimates,
 # though std. errors for weighted model seem to be a bit larger
 
-#----------------------------------------------------------------------------------------------------------------
-# Test whether interaction terms between CLC_SEX and other variables are non-zero, for both unweighted and weighted model
 
-# First check unweighted model using likelihood ratio test
+#----------------------------------------------------------------------------------------------------------------
+# Test whether interaction terms between CLC_SEX and other variables are non-zero, for both unweighted and weighted models
+
+# Build logit model with CLC_SEX interaction terms
 model_gender = update(model_logit, ~ . +CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
-anova(model_logit, model_gender, test = 'LRT')
 
-# Check weighted model using rao-scott working likelihood ratio test
+# Create dataframe containing MLE estimates and s.e's for parameters
+gender_likelihood_tests = param_estimates(model_gender)
+
+# Add likelihood ratio statistic p-values to the above dataframe
+gender_likelihood_tests[c(3:8, 10:14), 'p_value'] = as.data.frame(drop1(model_gender, scope = ~ ., test = "LRT"))[2:12, 'Pr(>Chi)']
+gender_likelihood_tests
+
+
+
+# Repeat for weighted model
+# Build weighted model with CLC_SEX interaction terms
 model_gender_weighted = update(model_weighted, ~ .+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
-regTermTest(model_gender_weighted, ~ CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG, method = "LRT")
 
-# Inconclusive whether any interaction effects are non-zero, for both models
+# Create dataframe containing MLE estimates and s.e's for parameters
+gender_weighted_likelihood_tests = param_estimates(model_gender_weighted)
+
+# Add Rao-Scott working likelihood ratio p-values to the above dataframe
+gender_weighted_likelihood_tests[3, 'p_value'] = regTermTest(model_gender_weighted, 'SMK_12', method = 'LRT')$p
+gender_weighted_likelihood_tests[10, 'p_value'] = regTermTest(model_gender_weighted, 'SMK_12:CLC_SEX', method = 'LRT')$p
+for(i in c(5:8, 11:14)) {
+  gender_weighted_likelihood_tests[i, 'p_value'] = regTermTest(model_gender_weighted, gender_weighted_likelihood_tests$Variable[i], method = 'LRT')$p
+}
+gender_weighted_likelihood_tests
+
 
 #----------------------------------------------------------------------------------------------------------------
-# Test whether interaction terms between CLC_AGE and other variables are non-zero, for both unweighted and weighted model
+# Test whether interaction terms between CLC_AGE and other variables are non-zero, for both unweighted and weighted models
 
-# First check unweighted model using likelihood ratio test
+# Build logit model with CLC_AGE interaction terms
 model_age = update(model_logit, ~ . +CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
-anova(model_logit, model_age, test = 'LRT')
 
-# Check weighted model using rao-scott working likelihood ratio test
+# Create dataframe containing MLE estimates and s.e's for parameters
+age_likelihood_tests = param_estimates(model_age)
+
+# Add likelihood ratio statistic p-values to the above dataframe
+age_likelihood_tests[c(3:8, 10:14), 'p_value'] = as.data.frame(drop1(model_age, scope = ~ ., test = "LRT"))[2:12, 'Pr(>Chi)']
+age_likelihood_tests
+
+
+
+# Repeat for weighted model
+# Build weighted model with CLC_AGE interaction terms
 model_age_weighted = update(model_weighted, ~ .+CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
-regTermTest(model_age_weighted, ~ CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG, method = "LRT")
 
-# There is some weak evidence that the risk factors of hypertension differ on average between age groups, for both models
+# Create dataframe containing MLE estimates and s.e's for parameters
+age_weighted_likelihood_tests = param_estimates(model_age_weighted)
+
+# Add Rao-Scott working likelihood ratio p-values to the above dataframe
+age_weighted_likelihood_tests[3, 'p_value'] = regTermTest(model_age_weighted, 'SMK_12', method = 'LRT')$p
+age_weighted_likelihood_tests[10, 'p_value'] = regTermTest(model_age_weighted, 'SMK_12:CLC_AGE', method = 'LRT')$p
+for(i in c(4, 6:8, 11:14)) {
+  age_weighted_likelihood_tests[i, 'p_value'] = regTermTest(model_age_weighted, age_weighted_likelihood_tests$Variable[i], method = 'LRT')$p
+}
+age_weighted_likelihood_tests
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -319,24 +364,13 @@ sum(study_data$WGT_FULL)
 # Which is what we get. So it seems like the weights are not scaled and are not integers. So using glm() with weights is
 # not appropriate
 
-# 3) As described on p. 25 of survey textbook, using type = 'BRR' in svyrepdesign() should automatically set scale ~ 1/500
-# Notice that using type = 'other' and scale 1/500 gives same summary() results as type = 'BBR'
-
-test_design_2a = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
-test_model_2a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2a, family = quasibinomial(), data = study_data)
-summary(test_model_2a)
-
-test_design_2b = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/500, rscales = rep.int(1, 500))
-test_model_2b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2b, family = quasibinomial(), data = study_data)
-summary(test_model_2b)
-
-# As described on p. 25 of survey textbook, using type = 'bootstrap' in svyrepdesign() should automatically set scale ~ 1/500
+# 3) As described on p. 25 of survey textbook, using type = 'bootstrap' in svyrepdesign() should automatically set scale ~ 1/500
 # Notice that using type = 'other' and scale 1/499 gives same summary() results as type = 'bootstrap'
 
-test_design_2c = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
-test_model_2c = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2c, family = quasibinomial(), data = study_data)
-summary(test_model_2c)
+test_design_3a = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
+test_model_3a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_3a, family = quasibinomial(), data = study_data)
+summary(test_model_3a)
 
-test_design_2d = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/499, rscales = rep.int(1, 500))
-test_model_2d = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_2d, family = quasibinomial(), data = study_data)
-summary(test_model_2d)
+test_design_3b = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/499, rscales = rep.int(1, 500))
+test_model_3b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_3b, family = quasibinomial(), data = study_data)
+summary(test_model_3b)
