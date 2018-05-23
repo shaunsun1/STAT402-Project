@@ -102,37 +102,61 @@ sum(is.na(study_data))  # 0 missing values
 
 #----------------------------------------------------------------------------------------------------------------
 # Do some EDA
-ggplot(study_data, aes(cut_number(CLC_AGE, 20), fill = factor(HIGHBP))) + 
-  geom_bar(position = position_fill(reverse = TRUE)) +
-  xlab("Age") + 
-  ylab("Proportion of HIGHBP") + 
-  ggtitle("Age Affects HIGHBP in Three Distinct Sections") +
-  scale_fill_discrete(name = "Has Hypertension?", labels = c("Yes", "No")) +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
 
-ggplot(study_data, aes(cut_number(HWMDBMI, 20), fill = factor(HIGHBP))) + 
-  geom_bar(position = position_fill(reverse = TRUE)) +
-  xlab("HWMDBMI") + 
-  ylab("Proportion of HIGHBP") + 
-  ggtitle("Relationship between HWMDBMI and HIGHBP is Roughly Linear") +  
-  scale_fill_discrete(name = "Has Hypertension?", labels = c("Yes", "No")) +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+# Check correlations between continuous explanatory variables (CLC_AGE, HWMDBMI, LAB_BCD, and LAB_BHG)
+cor(study_data[, 4:8])
+pairs(study_data[2:8])
 
-ggplot(study_data, aes(cut_number(LAB_BCD, 20), fill = factor(HIGHBP))) + 
-  geom_bar(position = position_fill(reverse = TRUE)) +
-  xlab("LAB_BCD") + 
-  ylab("Proportion of HIGHBP") +
-  ggtitle("Relationship between LAB_BCD and HIGHBP is Roughly Linear") +
-  scale_fill_discrete(name = "Has Hypertension?", labels = c("Yes", "No")) +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+# Variables are not linearly correlated. Thus, we can maybe ignore other explanatory variables when plotting log odds against
+# a single variable
 
-ggplot(study_data, aes(cut_number(LAB_BHG, 20), fill = factor(HIGHBP))) + 
-  geom_bar(position = position_fill(reverse = TRUE)) +
-  xlab("LAB_BHG") + 
-  ylab("Proportion of HIGHBP") +
-  ggtitle("Relationship between LAB_BHG and HIGHBP is Roughly Linear") +
-  scale_fill_discrete(name = "Has Hypertension?", labels = c("Yes", "No")) +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+# Group by categorical CLC_AGE and calculate log odds
+eda = study_data[, 1:8] %>%
+  mutate(CLC_AGE_CAT = cut_number(CLC_AGE, 30)) %>%
+  group_by(CLC_AGE_CAT) %>%
+  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))))
+
+# Plot logit(HIGHBP) against our categorical CLC_AGE
+ggplot(eda, aes(CLC_AGE_CAT, logit)) +
+  geom_point() 
+
+# No higher order terms for CLC_AGE are needed
+
+# Repeat for HWMDBMI
+eda = study_data[, 1:8] %>%
+  mutate(HWMDBMI_CAT = cut_number(HWMDBMI, 30)) %>%
+  group_by(HWMDBMI_CAT) %>%
+  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))))
+
+# Plot logit(HIGHBP) against our categorical HWMDBMI
+ggplot(eda, aes(HWMDBMI_CAT, logit)) +
+  geom_point() 
+
+# A quadratic term for HWMDBMI should be added
+
+# Repeat for LAB_BCD
+eda = study_data[, 1:8] %>%
+  mutate(LAB_BCD_CAT = cut_number(LAB_BCD, 20)) %>%
+  group_by(LAB_BCD_CAT) %>%
+  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))))
+
+# Plot logit(HIGHBP) against our categorical HWMDBMI
+ggplot(eda, aes(LAB_BCD_CAT, logit)) +
+  geom_point()  
+
+# A quadratic term for LAB_BCD should be added
+
+# Repeat for LAB_BHG
+eda = study_data[, 1:8] %>%
+  mutate(LAB_BHG_CAT = cut_number(LAB_BHG, 30)) %>%
+  group_by(LAB_BHG_CAT) %>%
+  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))))
+
+# Plot logit(HIGHBP) against our categorical HWMDBMI
+ggplot(eda, aes(LAB_BHG_CAT, logit)) +
+  geom_point() 
+
+# A quadratic term for LAB_BHG could be added
 
 
 #----------------------------------------------------------------------------------------------------------------
