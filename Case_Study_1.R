@@ -1,5 +1,6 @@
 # Load some useful packages
 library(tidyverse)  # Set of packages including ggplot2
+library(survival)  # Survival analysis
 library(caret)  # Used for knn and cross-validation
 library(car)  # Calculates VIF to check for multicollinearity
 library(ResourceSelection)  # Hosmer-Lemeshow goodness-of-fit test
@@ -22,10 +23,10 @@ seed2 = 874515716
 
 # The values for LAB_BCD and LAB_BHG have been set to 999.5 when the patients recorded values are too low to be measured (ie. they are below the LOD). 
 # First understand how common this is
-BCD_LOD = sum(study_data$LAB_BCD == 999.5, na.rm = TRUE)  
-BCD_LOD  # 999.5 appears 54 times in LAB_BCD
-BHG_LOD = sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)
-BHG_LOD  # 999.5 appears 599 times in LAB_BHG
+BCD_LOD = study_data$LAB_BCD == 999.5 & !is.na(study_data$LAB_BCD)
+sum(BCD_LOD)  # 999.5 appears 54 times in LAB_BCD
+BHG_LOD = study_data$LAB_BHG == 999.5 & !is.na(study_data$LAB_BHG)
+sum(BHG_LOD)  # 999.5 appears 599 times in LAB_BHG
 
 # The values below the LOD are replaced with randomly drawn elements from the interval (0, LOD); this is called jittering
 set.seed(seed1)
@@ -33,9 +34,7 @@ study_data$LAB_BCD[study_data$LAB_BCD == 999.5 & !is.na(study_data$LAB_BCD)] = r
 set.seed(seed2)
 study_data$LAB_BHG[study_data$LAB_BHG == 999.5 & !is.na(study_data$LAB_BHG)] = runif(BHG_LOD, 0, 2.1)
 
-# Confirm that all values below the LOD have been replaced.
-sum(study_data$LAB_BCD == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_BCD
-sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_BHG
+
 
 
 # Alternative method: Use survival analysis to estimate missing values!
@@ -52,10 +51,49 @@ sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_B
 # Plot weibull distributions with different parameters
 #ggplot(mapping = aes(rweibull(3000, shape = 1, scale = 15))) + geom_histogram(binwidth = 2)
 
-# Not done yet...
 
-#simple_random_sample = svydesign(~1, variables = study_data[, 2:8], data = study_data)
-#svykm(LAB_BHG ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+HIGHBP+LAB_BCD, simple_random_sample)
+# Create a survival object for LAB_BHG
+# Let start_time_BHG equal study_data$LAB_BHG unless LAB_BHG equals 999.5 (ie. unless BHG_LOD = TRUE). Then, should equal NA
+#start_time_BHG = study_data$LAB_BHG
+#is.na(start_time_BHG) = BHG_LOD
+
+# Let end_time_BHG equal study_data$LAB_BHG unless LAB_BHG equals 999.5. Then, should equal 2.1
+#end_time_BHG = study_data$LAB_BHG
+#end_time_BHG[BHG_LOD] = 2.1
+
+#surv_object_BHG = Surv(time = start_time_BHG, time2 = end_time_BHG, type = 'interval2')
+
+#study_data$surv_object_BHG = surv_object_BHG  # Add surv_object_BHG to dataframe
+#study_data = study_data[, c(1:8, 510, 9:509)]
+
+
+# Use Kaplan-Meier algorithm to estimate Survival function for LAB_BHG
+#survival_BHG = survfit(surv_object_BHG ~ 1, type = "kaplan-meier")
+
+# Plot -log(Kaplan-Meier) estimate against response. A straight line is added as reference 
+#ggplot(mapping = aes(survival_BHG$time, survival_BHG$surv)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+
+# This is not a straight line, which suggests that the response cannot be approximated well with an exponential distribution
+
+# Model LAB_BHG as a Weibull distribution and use log(?) link function
+# Use as training set all observations with no missing data or LAB_BCD censored data
+#model_surv_BHG = survreg(surv_object_BHG ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+HIGHBP+LAB_BCD, study_data, subset = (rowSums(is.na(study_data)) == 0) & !BCD_LOD)
+
+# Use model to predict censored LAB_BHG data
+#predict(model_surv_BHG, study_data[BHG_LOD, ])
+#ggplot(mapping = aes(predict(model_surv_BHG, study_data[BHG_LOD, ]))) + geom_histogram()
+
+
+#surv_design = svrepdesign(study_data[, c(2:7, 9)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
+#new_design = svydesign(~1, data = study_data)
+#svysurvreg(HIGHBP ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+surv_object_BHG, design = new_design)
+
+
+
+
+# Confirm that all values below the LOD have been replaced.
+sum(study_data$LAB_BCD == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_BCD
+sum(study_data$LAB_BHG == 999.5, na.rm = TRUE)  # 999.5 appears 0 times in LAB_BHG
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -216,6 +254,9 @@ ggplot(mapping = aes(model_logit$linear.predictors, residuals(model_logit, "pear
   ggtitle("Residual Plot with No Replicates is Uninformative") +
   theme(plot.title = element_text(hjust = 0.5))
 
+# Add some quadratic terms to logit model
+model_logit_quad = update(model_logit, ~ .+I(HWMDBMI^2)+I(LAB_BCD^2)+I(LAB_BHG^2))
+
 
 #----------------------------------------------------------------------------------------------------------------
 # Use the package 'survey' to integrate weights into model
@@ -223,11 +264,14 @@ ggplot(mapping = aes(model_logit$linear.predictors, residuals(model_logit, "pear
 glm_design = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
 model_weighted = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = glm_design, family = quasibinomial(), data = study_data)
 
+# Now add a few quadratic terms
+model_weighted_quad = update(model_weighted, ~ .+I(HWMDBMI^2)+I(LAB_BCD^2)+I(LAB_BHG^2))
+
 
 #----------------------------------------------------------------------------------------------------------------
 # Draw conclusions about individual parameters for unweighted and weighted model
 
-# Returns a dataframe with two columns: parameter estimates and std. errors for the given model
+# For the given model, returns a dataframe with three columns (parameter estimates, std. errors, and p-values) 
 param_estimates = function(model) {
   return(as.data.frame(summary(model)$coefficients) %>%
            select('Estimate', 'Std. Error') %>%
@@ -235,13 +279,24 @@ param_estimates = function(model) {
            mutate('p_value' = rep(NA, nrow(.))))
 }
 
+# For the given model, adds to the given dataframe three columns 
+# (weighted parameter estimates, weighted std. errors, and weighted p-values) 
+weighted_param_estimates = function(model, data_frame) {
+  weighted_data_frame = as.data.frame(summary(model)$coefficients) %>%
+                    select('Estimate', 'Std. Error') %>%
+                    rownames_to_column("Variable") %>%
+                    rename('Weighted Estimate' = 'Estimate', 'Weighted Std. Error' = 'Std. Error') %>%
+                    mutate('Weighted p_value' = rep(NA, nrow(.)))
+  
+  complete_data_frame = full_join(data_frame, weighted_data_frame, 'Variable')
+  complete_data_frame = complete_data_frame[, c(1, 2, 5, 3, 6, 4, 7)]
+}
+
 # For logit model, create dataframe containing MLE estimates and s.e's for parameters
 logit_likelihood_tests = param_estimates(model_logit)
 
 # Add likelihood ratio statistic p-values to the above dataframe
 logit_likelihood_tests[3:8, 'p_value'] = as.data.frame(drop1(model_logit, test = "LRT"))[2:7, 'Pr(>Chi)']
-logit_likelihood_tests
-
 
 
 # Since it seems likely that a weighted maximum likelihood method is being used to estimate parameters (see p. 268 of Fitting 
@@ -249,14 +304,14 @@ logit_likelihood_tests
 # package to perform hypothesis testing using the Rao-Scott working likelihood ratio test instead (see p.273 of same paper)
 
 # For weighted logit model, create dataframe containing MLE estimates and s.e's for parameters
-weighted_likelihood_tests = param_estimates(model_weighted)
+logit_likelihood_tests = weighted_param_estimates(model_weighted, logit_likelihood_tests)
 
 # Add Rao-Scott working likelihood ratio p-values to the above dataframe
-weighted_likelihood_tests[3, 'p_value'] = regTermTest(model_weighted, 'SMK_12', method = 'LRT')$p
+logit_likelihood_tests[3, 'Weighted p_value'] = regTermTest(model_weighted, 'SMK_12', method = 'LRT')$p
 for(i in c(4:8)) {
-  weighted_likelihood_tests[i, 'p_value'] = regTermTest(model_weighted, weighted_likelihood_tests$Variable[i], method = 'LRT')$p
+  logit_likelihood_tests[i, 'Weighted p_value'] = regTermTest(model_weighted, logit_likelihood_tests$Variable[i], method = 'LRT')$p
 }
-weighted_likelihood_tests
+logit_likelihood_tests
 
 # For both unweighted and weighted models, even when taking into account the other variables in the model, there is strong 
 # evidence that sex, age, and body mass index influence average hypertension, and weaker evidence that blood mercury levels 
@@ -268,6 +323,22 @@ weighted_likelihood_tests
 
 # Notice that both unweighted and weighted models have similiar parameter estimates and std.error estimates,
 # though std. errors for weighted model seem to be a bit larger
+
+# Repeat with quadratic terms
+# First unweighted logit model
+logit_quad_likelihood_tests = param_estimates(model_logit_quad)
+logit_quad_likelihood_tests[3:11, 'p_value'] = as.data.frame(drop1(model_logit_quad, test = "LRT"))[2:10, 'Pr(>Chi)']
+
+
+# Now weighted model
+logit_quad_likelihood_tests = weighted_param_estimates(model_weighted_quad, logit_quad_likelihood_tests)
+
+# Add Rao-Scott working likelihood ratio p-values to the above dataframe
+logit_quad_likelihood_tests[3, 'Weighted p_value'] = regTermTest(model_weighted_quad, 'SMK_12', method = 'LRT')$p
+for(i in c(4:11)) {
+  logit_quad_likelihood_tests[i, 'Weighted p_value'] = regTermTest(model_weighted_quad, logit_quad_likelihood_tests$Variable[i], method = 'LRT')$p
+}
+logit_quad_likelihood_tests
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -281,8 +352,6 @@ gender_likelihood_tests = param_estimates(model_gender)
 
 # Add likelihood ratio statistic p-values to the above dataframe
 gender_likelihood_tests[c(3:8, 10:14), 'p_value'] = as.data.frame(drop1(model_gender, scope = ~ ., test = "LRT"))[2:12, 'Pr(>Chi)']
-gender_likelihood_tests
-
 
 
 # Repeat for weighted model
@@ -290,15 +359,33 @@ gender_likelihood_tests
 model_gender_weighted = update(model_weighted, ~ .+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
 
 # Create dataframe containing MLE estimates and s.e's for parameters
-gender_weighted_likelihood_tests = param_estimates(model_gender_weighted)
+gender_likelihood_tests = weighted_param_estimates(model_gender_weighted, gender_likelihood_tests)
 
 # Add Rao-Scott working likelihood ratio p-values to the above dataframe
-gender_weighted_likelihood_tests[3, 'p_value'] = regTermTest(model_gender_weighted, 'SMK_12', method = 'LRT')$p
-gender_weighted_likelihood_tests[10, 'p_value'] = regTermTest(model_gender_weighted, 'SMK_12:CLC_SEX', method = 'LRT')$p
+gender_likelihood_tests[3, 'Weighted p_value'] = regTermTest(model_gender_weighted, 'SMK_12', method = 'LRT')$p
+gender_likelihood_tests[10, 'Weighted p_value'] = regTermTest(model_gender_weighted, 'SMK_12:CLC_SEX', method = 'LRT')$p
 for(i in c(5:8, 11:14)) {
-  gender_weighted_likelihood_tests[i, 'p_value'] = regTermTest(model_gender_weighted, gender_weighted_likelihood_tests$Variable[i], method = 'LRT')$p
+  gender_likelihood_tests[i, 'Weighted p_value'] = regTermTest(model_gender_weighted, gender_likelihood_tests$Variable[i], method = 'LRT')$p
 }
-gender_weighted_likelihood_tests
+gender_likelihood_tests
+
+
+# Repeat with quadratic terms
+# First unweighted model with sex interaction terms
+model_gender_quad = update(model_logit_quad, ~ . +CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
+gender_quad_likelihood_tests = param_estimates(model_gender_quad)
+gender_quad_likelihood_tests[c(3:11, 13:17), 'p_value'] = as.data.frame(drop1(model_gender_quad, scope = ~ ., test = "LRT"))[2:15, 'Pr(>Chi)']
+
+# Now weighted model
+model_gender_weighted_quad = update(model_weighted_quad, ~ .+CLC_SEX:SMK_12+CLC_SEX:CLC_AGE+CLC_SEX:HWMDBMI+CLC_SEX:LAB_BCD+CLC_SEX:LAB_BHG)
+gender_quad_likelihood_tests = weighted_param_estimates(model_gender_weighted_quad, gender_quad_likelihood_tests)
+
+gender_quad_likelihood_tests[3, 'Weighted p_value'] = regTermTest(model_gender_weighted_quad, 'SMK_12', method = 'LRT')$p
+gender_quad_likelihood_tests[13, 'Weighted p_value'] = regTermTest(model_gender_weighted_quad, 'SMK_12:CLC_SEX', method = 'LRT')$p
+for(i in c(5:11, 14:17)) {
+  gender_quad_likelihood_tests[i, 'Weighted p_value'] = regTermTest(model_gender_weighted_quad, gender_quad_likelihood_tests$Variable[i], method = 'LRT')$p
+}
+gender_quad_likelihood_tests
 
 
 #----------------------------------------------------------------------------------------------------------------
@@ -312,8 +399,6 @@ age_likelihood_tests = param_estimates(model_age)
 
 # Add likelihood ratio statistic p-values to the above dataframe
 age_likelihood_tests[c(3:8, 10:14), 'p_value'] = as.data.frame(drop1(model_age, scope = ~ ., test = "LRT"))[2:12, 'Pr(>Chi)']
-age_likelihood_tests
-
 
 
 # Repeat for weighted model
@@ -321,16 +406,33 @@ age_likelihood_tests
 model_age_weighted = update(model_weighted, ~ .+CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
 
 # Create dataframe containing MLE estimates and s.e's for parameters
-age_weighted_likelihood_tests = param_estimates(model_age_weighted)
+age_likelihood_tests = weighted_param_estimates(model_age_weighted, age_likelihood_tests)
 
 # Add Rao-Scott working likelihood ratio p-values to the above dataframe
-age_weighted_likelihood_tests[3, 'p_value'] = regTermTest(model_age_weighted, 'SMK_12', method = 'LRT')$p
-age_weighted_likelihood_tests[10, 'p_value'] = regTermTest(model_age_weighted, 'SMK_12:CLC_AGE', method = 'LRT')$p
+age_likelihood_tests[3, 'Weighted p_value'] = regTermTest(model_age_weighted, 'SMK_12', method = 'LRT')$p
+age_likelihood_tests[10, 'Weighted p_value'] = regTermTest(model_age_weighted, 'SMK_12:CLC_AGE', method = 'LRT')$p
 for(i in c(4, 6:8, 11:14)) {
-  age_weighted_likelihood_tests[i, 'p_value'] = regTermTest(model_age_weighted, age_weighted_likelihood_tests$Variable[i], method = 'LRT')$p
+  age_likelihood_tests[i, 'Weighted p_value'] = regTermTest(model_age_weighted, age_likelihood_tests$Variable[i], method = 'LRT')$p
 }
-age_weighted_likelihood_tests
+age_likelihood_tests
 
+
+# Repeat with quadratic terms
+# First unweighted model with age interaction terms
+model_age_quad = update(model_logit_quad, ~ . +CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
+age_quad_likelihood_tests = param_estimates(model_age_quad)
+age_quad_likelihood_tests[c(3:11, 13:17), 'p_value'] = as.data.frame(drop1(model_age_quad, scope = ~ ., test = "LRT"))[2:15, 'Pr(>Chi)']
+
+# Now weighted model
+model_age_weighted_quad = update(model_weighted_quad, ~ .+CLC_AGE:SMK_12+CLC_AGE:CLC_SEX+CLC_AGE:HWMDBMI+CLC_AGE:LAB_BCD+CLC_AGE:LAB_BHG)
+age_quad_likelihood_tests = weighted_param_estimates(model_age_weighted_quad, age_quad_likelihood_tests)
+
+age_quad_likelihood_tests[3, 'Weighted p_value'] = regTermTest(model_age_weighted_quad, 'SMK_12', method = 'LRT')$p
+age_quad_likelihood_tests[13, 'Weighted p_value'] = regTermTest(model_age_weighted_quad, 'SMK_12:CLC_AGE', method = 'LRT')$p
+for(i in c(4, 6:11, 14:17)) {
+  age_quad_likelihood_tests[i, 'Weighted p_value'] = regTermTest(model_age_weighted_quad, age_quad_likelihood_tests$Variable[i], method = 'LRT')$p
+}
+age_quad_likelihood_tests
 
 #----------------------------------------------------------------------------------------------------------------
 # Some Questions to Think About
@@ -358,43 +460,3 @@ age_weighted_likelihood_tests
 #    Not sure if this is just for linear regression, or for logistic regression as well.
 
 #    Actually, I think svyglm() uses pseudo-likelihood estimation (see p. 268 of Fitting Regression Models to Survey Data)
-
-#----------------------------------------------------------------------------------------------------------------
-# Experiments
-
-# 1) Build different svyglm models using both sampling and replication weights, but using different kinds of replication weights
-# Should get same point estimates, but different variances
-
-test_design_1a = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
-test_model_1a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1a, family = quasibinomial(), data = study_data)
-summary(test_model_1a)
-
-test_design_1b = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'BRR')
-test_model_1b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1b, family = quasibinomial(), data = study_data)
-summary(test_model_1b)
-
-test_design_1c = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other')
-test_model_1c = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_1c, family = quasibinomial(), data = study_data)
-summary(test_model_1c)
-
-# And that is exactly what we see!
-
-# 2) It was suggested that the sampling weights WGT_FULL might be measured in thousands or something, thus making them integers.
-#    To test this, remember that these weights represent the number of Canadians that each person in the sample represent.
-#    Thus, if a weight of 1 represents one person, the sum of these weights should equal about 30 million
-
-sum(study_data$WGT_FULL)
-
-# Which is what we get. So it seems like the weights are not scaled and are not integers. So using glm() with weights is
-# not appropriate
-
-# 3) As described on p. 25 of survey textbook, using type = 'bootstrap' in svyrepdesign() should automatically set scale ~ 1/500
-# Notice that using type = 'other' and scale 1/499 gives same summary() results as type = 'bootstrap'
-
-test_design_3a = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'bootstrap')
-test_model_3a = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_3a, family = quasibinomial(), data = study_data)
-summary(test_model_3a)
-
-test_design_3b = svrepdesign(study_data[, c(2:8)], repweights = select(study_data, starts_with("BS")), weights = study_data$WGT_FULL, type = 'other', scale = 1/499, rscales = rep.int(1, 500))
-test_model_3b = svyglm(as.factor(HIGHBP) ~ SMK_12+CLC_SEX+CLC_AGE+HWMDBMI+LAB_BCD+LAB_BHG, design = test_design_3b, family = quasibinomial(), data = study_data)
-summary(test_model_3b)
