@@ -99,7 +99,11 @@ eda = study_data[, 1:8] %>%
 
 # Plot logit(HIGHBP) against our categorical CLC_AGE
 ggplot(eda, aes(CLC_AGE_CAT, logit)) +
-  geom_point() 
+  geom_point() +
+  xlab("Age") + 
+  ylab("Log Odds of Mean Hypertension") + 
+  ggtitle("Relationship between Log Odds and Age is Linear") +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
 
 # No higher order terms for CLC_AGE are needed
 
@@ -111,7 +115,11 @@ eda = study_data[, 1:8] %>%
 
 # Plot logit(HIGHBP) against our categorical HWMDBMI
 ggplot(eda, aes(HWMDBMI_CAT, logit)) +
-  geom_point() 
+  geom_point() +
+  xlab("Body Mass Index") + 
+  ylab("Log Odds of Mean Hypertension") + 
+  ggtitle("Relationship between Log Odds and Body Mass Index is Possibly Quadratic") +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
 
 # A quadratic term for HWMDBMI should be added
 
@@ -123,7 +131,11 @@ eda = study_data[, 1:8] %>%
 
 # Plot logit(HIGHBP) against our categorical HWMDBMI
 ggplot(eda, aes(LAB_BCD_CAT, logit)) +
-  geom_point()  
+  geom_point() +
+  xlab("Concentration of Blood Cadmium (nmol/L)") + 
+  ylab("Log Odds of Mean Hypertension") + 
+  ggtitle("Relationship between Log Odds and Blood Cadmium Concentration is Possibly Quadratic") +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
 
 # A quadratic term for LAB_BCD should be added
 
@@ -135,7 +147,11 @@ eda = study_data[, 1:8] %>%
 
 # Plot logit(HIGHBP) against our categorical HWMDBMI
 ggplot(eda, aes(LAB_BHG_CAT, logit)) +
-  geom_point() 
+  geom_point() +
+  xlab("Concentration of Blood Mercury (nmol/L)") + 
+  ylab("Log Odds of Mean Hypertension") + 
+  ggtitle("Relationship between Log Odds and Blood Mercury Concentration is Possibly Quadratic") +
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
 
 # A quadratic term for LAB_BHG could be added
 

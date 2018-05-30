@@ -1,0 +1,457 @@
+% --------------------------------------------------------------------------- %
+% Poster for the SSC 2012 Conference (Case Study).      %
+% --------------------------------------------------------------------------- %
+% Created with Brian Amberg's LaTeX Poster Template. Please refer for the     %
+% attached README.md file for the details how to compile with `pdflatex`.     %
+% --------------------------------------------------------------------------- %
+% $LastChangedDate:: 2011-09-11 10:57:12 +0200 (V, 11 szept. 2011)          $ %
+% $LastChangedRevision:: 128                                                $ %
+% $LastChangedBy:: rlegendi                                                 $ %
+% $Id:: poster.tex 128 2011-09-11 08:57:12Z rlegendi                        $ %
+% --------------------------------------------------------------------------- %
+\documentclass[paperwidth=58in,paperheight=47in,portrait]{baposter}
+
+\usepackage{relsize}		% For \smaller
+\usepackage{url}			% For \url
+\usepackage{epstopdf}	% Included EPS files automatically converted to PDF to include with pdflatex
+\usepackage{array}
+\usepackage{multicol}
+%\setlength{\columnseprule}{1pt}
+
+\def\thousandseparator{,}
+
+%%% Global Settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\graphicspath{{pix/}}	% Root directory of the pictures 
+\tracingstats=2			% Enabled LaTeX logging with conditionals
+
+%%% Color Definitions %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\definecolor{bordercol}{RGB}{0,0,0}
+\definecolor{headercol1}{RGB}{106,0,255}
+\definecolor{headercol2}{RGB}{106,0,255}
+\definecolor{headerfontcol}{RGB}{255,255,255}
+\definecolor{boxcolor}{RGB}{255,255,255}
+\definecolor{backcolor1}{RGB}{216,255,150}
+\definecolor{backcolor2}{RGB}{216,255,150}
+\definecolor{titlecol}{RGB}{0,0,0}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Utility functions %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%% Save space in lists. Use this after the opening of the list %%%%%%%%%%%%%%%%
+\newcommand{\compresslist}{
+	\setlength{\itemsep}{1pt}
+	\setlength{\parskip}{0pt}
+	\setlength{\parsep}{0pt}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Document Start %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+\typeout{Poster rendering started}
+
+%%% Setting Background Image %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%\background{
+%	\begin{tikzpicture}[remember picture,overlay]%
+%	\draw (current page.north west)+(-2em,2em) node[anchor=north west]
+%	{\includegraphics[height=1.1\textheight]{background}};
+%	\end{tikzpicture}
+%}
+
+%%% General Poster Settings %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%% Eye Catcher, Title, Authors and University Images %%%%%%%%%%%%%%%%%%%%%%
+\begin{poster}{
+	grid=false,
+	% Option is left on true though the eyecatcher is not used. The reason is
+	% that we have a bit nicer looking title and author formatting in the headercol
+	% this way
+	eyecatcher=true, 
+	borderColor=bordercol,
+	headerColorOne=headercol1,
+	headerColorTwo=headercol2,
+	headerFontColor=headerfontcol,
+	% Only simple background color used, no shading, so boxColorTwo isn't necessary
+	boxColorOne=boxcolor,
+	headershape=rounded,
+	headerfont=\Large\sf\bf,
+	textborder=rounded,
+	background=shadetb,
+	bgColorOne=backcolor1,
+	bgColorTwo=backcolor2,
+	headerborder=closed,
+  boxshade=plain,
+  columns=4
+}
+%%% Eye Cacther %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{
+%\setlength\fboxsep{0pt}
+%\setlength\fboxrule{0.5pt}
+%	\fbox{
+%		\begin{minipage}{14em}
+			%\includegraphics[width=14em]{SFU.png}
+			\includegraphics[width=14em]{SFU.png}
+%			\includegraphics[width=4em,height=4em]{elte_logo} \\
+%			\includegraphics[width=10em,height=4em]{dynanets_logo}
+%			\includegraphics[width=4em,height=4em]{aitia_logo}
+%		\end{minipage}
+%	}
+}
+%%% Title %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{\sf\bf
+	\color{titlecol}Estimation of Atlantic Cod Exploitation Rates From a Capture-Recapture Study
+}
+%%% Authors %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{
+	\vspace{1em} Beliveau, Audrey and Sun, Zheng, Simon Fraser University\\
+	{\smaller abelivea@sfu.ca, zhengs@sfu.ca}
+}
+%%% Logo %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{
+% The logos are compressed a bit into a simple box to make them smaller on the result
+% (Wasn't able to find any bigger of them.)
+%\setlength\fboxsep{0pt}
+%\setlength\fboxrule{0.5pt}
+%	\fbox{
+%		\begin{minipage}{14em}
+			%\includegraphics[width=14em]{SFU.png}
+			\includegraphics[width=14em]{sfustats.png}
+%			\includegraphics[width=4em,height=4em]{elte_logo} \\
+%			\includegraphics[width=10em,height=4em]{dynanets_logo}
+%%			\includegraphics[width=4em,height=4em]{aitia_logo}
+%		\end{minipage}
+%	}
+}
+
+\headerbox{Introduction}{name=Introduction,column=0,row=0}{
+\textbf{Objective}: Estimate the yearly \textcolor{red}{exploitation rates} of cod (Gadus Morhua) in coastal Newfoundland \\
+
+\textbf{Study}: Fisheries and Ocean Canada conducted a \textcolor{red}{capture-recapture} study from 1997-2011.
+\begin{itemize}
+\item Approximatively 124\thousandseparator 000 fish were catched, tagged and released in different regions.
+\item Fishers were offered rewards for returning the tags ($\approx$ 21\thousandseparator 000 fish reported).
+\item Fish were tagged either with a single low-reward (10\$) front tag (78 \%), a single high-reward (100\$) front tag (13 \%) or two low-reward front and back tags (9 \%).
+\end{itemize}
+
+\textbf{Data}: The following information was recorded for both release and recapture (provided the tag was returned): length, NAFO area, date (week near) and tag condition, that is:
+\begin{itemize}
+\item S: Front tag on single low-reward tagged fish  %without tag lost
+\item DF: Front tag only on double tagged fish %that lost its back tag %with front tag only %with back tag lost
+\item DB: Back tag only on double tagged fish% that lost its front tag %with back tag only %with front tag lost
+\item DD: Front and back tags on double tagged fish %(no tag loss)
+\item H: Front tag on single high-reward tagged fish. %without lost.
+\end{itemize}
+%
+%\textbf{Data}: Some features of the data
+%\begin{itemize}
+%\item Some fish lose their tag(s)
+%\item The front tag is lost more frequently than the back tag (see [])
+%\item Some fish are caught by fishers but are not be reported
+%\item Some fish die from natural mortality during the study
+%\item There is fish movement
+%%\item Migration outside of the study region is negligible
+%\end{itemize}
+}
+
+\headerbox{Descriptive Statistics}{name=Descriptive,column=0,below=Introduction}{
+
+\begin{multicols}{2}
+\textbf{Time unit and region}:
+
+\vspace{0.1cm}
+
+We use yearly data and merge areas in 4 regions as follows:
+\includegraphics[width=10em]{map4.png}
+
+\vspace{1cm}
+
+\textbf{Migration}:
+
+\vspace{0.1cm}
+
+Migration between region from release (left) to catch (top).
+% Table generated by Excel2LaTeX from sheet 'simu2goodtables.txt'
+\scalebox{0.9}{
+\begin{tabular}{r|cccc}
+
+           &          E &          O &          S &          W \\ \hline
+
+         E &       85.1 &        1.0 &       13.8 &        0.1 \\
+
+         O &        2.8 &       53.3 &       25.4 &       18.6 \\
+
+         S &        3.4 &        2.4 &       94.0 &        0.2 \\
+
+         W &          - &          - &          - &          - \\
+
+\end{tabular}}
+\end{multicols}
+
+\begin{multicols}{2}
+\textbf{Releases and reports}:
+
+\vspace{0.1cm}
+
+blablab lablablabl ablabl ablablablabla blablabla \\
+\includegraphics[width=14em]{plot_rec.png}
+\end{multicols}
+
+\textbf{Tag Retention}: Double tag releases were recovered 72\% as DD, 19\% as DB and 9\% as DF.\\
+}
+
+\headerbox{Notation}{name=Notation,column=0,below=Descriptive}{
+\textbf{Data}: Let $i$ denote the release year, $j$ the capture year, $s$ the release region, $t$ the capture region and $g$ the tag condition. The data can be summarized into the following quantities:
+\begin{itemize}
+\item$N_{ig}$ : Vector whose $s$th element is the number of type $g=$S, DD or H fish \textcolor{red}{released} during year $i$ in region $s$
+\item$R_{ijg}$:  \textcolor{red}{Random} matrix whose element $(s,t)$ is the number of type $g=$S, D1, D2, DD or H fish \textcolor{red}{released} during year $i$ in region $s$, \textcolor{red}{catched} with \textcolor{red}{at least one tag} during year $j$ in region $t$, and \textcolor{red}{returned} .
+\end{itemize}
+}
+
+
+
+\headerbox{Notation (cont'd)}{name=Notation2,column=1,row=0}{
+
+\textbf{Parameters}: 
+%For tagged fish released at time $i$, alive at time $l$ with at least one tag, we define the following parameters: 
+\begin{itemize}
+
+\item $\phi_{l}$: vector whose $u$th element is the probability that a fish in region $u$ at the beginning of year $l$ \textcolor{red}{survives} during the year.
+\item $p_{l}$: vector whose $u$th element is the probability that a fish in region $u$ at the beginning of year $l$ is \textcolor{red}{captured} during the year
+\item $Q_{l}$: matrix whose $(u,v)$ element is the probability that a fish in region $u$ at the beginning of year $l$ \textcolor{red}{migrates} to region $v$ by the end of the year.
+\item $\Lambda_{ilg}$: probability that a fish is in \textcolor{red}{tag condition} $g$ at the end of year $l$
+\item $\Phi_{ilF}$ and $\Phi_{ilG}$: cumulative probabilities that a fish in region $u$ at the end of year $l$ retained its Front/Back tag all the way from its release in year $i$ 
+\item $\lambda_{lg}$: vector whose $u$th element is the probability that a fish caught in region $u$ in year $l$ in condition $g$ is \textcolor{red}{reported}
+%
+%with one low-reward tag (i.e. g=S, D1 or D2) 
+%\item $\lambda_{lD}$: vector whose $u$th element is the probability that a fish catched in state $u$ at time $l$ with 2 low-reward tags (i.e. g=DD) is \textbf{reported}
+\end{itemize}
+\textbf{Operator}: The operator " $\tilde{ }$ " transforms a $d$-elements vector into a $d\times d$ diagonal matrix by placing its elements in order along the diagonal}
+
+
+\headerbox{Assumptions}{name=Assumptions,column=1,below=Notation2,span=1}{
+%Fish are released at discrete times and catched at the beginning of a period and catched at the end\\
+
+\textbf{Catch and Release} : All releases happened at the beginning of a year and all catches at the end of a year.\\
+
+\textbf{Survival, Capture and Migration} : Every fish in region $u$ at the beginning of year $i$ have the same survival, migration and capture probabilities over year $i$.\\ % and The following quantities are the same for all fish in state $u$ at sample time $l$ : probability to survive until time $l+1$, probability to migrate to state $v$ by time $l+1$, probability to be captured by time $l+1$.\\
+
+\textbf{Reporting Rate}:
+Fish caught at time $j$ with high-reward tag are all reported, that is
+\begin{equation}
+\lambda_{jH} = 1.
+\end{equation}
+Moreover, fish caught with one low-reward tag are all reported with the same probability, that is
+\begin{equation}
+\lambda_{jS} = \lambda_{jDF} =\lambda_{jDB}.
+\end{equation}
+
+\textbf{Tag Retention}: Double tagged fish retain their front and back tag independently:
+% Let the retention cumulative probabilities for the front and back tags be respectively $\Phi_{ilF}$ and $\Phi_{ilB}$, then:
+\begin{equation}
+\Lambda_{ijS} = \Lambda_{ijH} = \Phi_{ijF}
+\end{equation}
+\begin{equation}
+\Lambda_{ijDD} = \Phi_{ijF} \Phi_{ijB}
+\end{equation}
+\begin{equation}
+\Lambda_{ijDF} = \Phi_{ijF} (1-\Phi_{ijB})
+\end{equation}
+\begin{equation}
+\Lambda_{ijDB} = \Phi_{ijB} (1-\Phi_{ijF})
+\end{equation}
+Brattey and Cadigan (2006) \cite{BC} show that...\\
+
+\textbf{Closed Population}: Fish do not travel outside the study area \\
+
+}
+
+\headerbox{Methods}{name=Methods,column=1,span=1,below=Assumptions}{
+\textbf{Model}: Following Cowen et al. (), we model the $R_{ijg}$'s as \textcolor{red}{independent Poisson r.v.} with parameter $E(R_{ijg})$.\\
+
+If $g=$ S or H,
+\begin{equation}
+E(R_{ijg}) =\color{red}\tilde N_{isg} \color{black}\left[ \prod_{l=i}^{j-1}  \tilde \phi_{l} Q_{l} \big(1-\tilde p_{l}\big) \right]  \phi_{j} Q_{j}\tilde p_{j}\Lambda_{ijg}\tilde\lambda_{jg}
+\end{equation}
+and if $g=$ DF, DB or DD,
+\begin{equation}
+E(R_{ijg}) =\color{red}\tilde N_{isDD} \color{black}\left[ \prod_{l=i}^{j-1}  \tilde \phi_{l} Q_{l} \big(1-\tilde p_{l}\big) \right] \phi_{j} Q_{j} \tilde p_{j}\Lambda_{ijg}\tilde\lambda_{jg}.
+\end{equation}
+}
+
+\headerbox{Methods (cont'd)}{name=Methods2,column=2,span=1,row=0}{
+
+\textbf{Interpretation}: Element $(s,t)$ of the matrix $E(R_{ijDF})$ is the expected number of double tagged fish released in year $i$ in region $s$ ($\tilde N_{isDD}$) that survived ($\tilde \phi_{i}$) and migrated ($Q_{i}$) and were not captured $\big(1-\tilde p_{i}\big)$ during year $i$. Further, they survived, migrated and were not captured up to the end of year $j-1$. Then, during year $j$, they survived, migrated to region $t$ and finally were captured ($p_{j}$) with only a front tag ($\Lambda_{ijDF}$) and were reported ($\lambda_{jDF}$).\\
+
+\textbf{Tag Loss Model}: Following Brattey and Cadigan (2006) \cite{BC}, we model $\Lambda_{ilF}$ and $\Lambda_{ilG}$ using \textcolor{red}{Kirkwood's parametric model}. That is, for $h=F$ or $B$,
+\begin{equation}
+\Phi_{ilh} = \left[\frac{\beta_{1h}}{\beta_{1h}+\beta_{2h} (l-i)}\right]^{\beta_{2h}}, \beta_{1h}>0, \beta_{2h}>0.
+\end{equation}
+
+
+ \textbf{Constraining parameters}: Parameters that represent probabilities are constrained between 0 and 1 using a \textcolor{red}{logit transformation}.  Kirkwood's parameters in () are constrained $>0$ using an \textcolor{red}{exponential transformation}.\\
+
+ \textbf{Point \& Variance Estimation}: \textcolor{red}{Maximum likelihood} and Delta method\\ %$\prod_{\{i,j,g\}} R_{ijg}$\\
+
+ \textbf{Model Selection}: Due to the complexity of the model and the sparse, we have been able to fit only very few models with success. Therefore, we will only present the most sophisticated model we have been able to fit. We would suggest using QAIC to compare different models.\\
+
+ \textbf{Computing}: We use R version ... Our code is general for any time period length or number of regions. We use design matrices allowing to constraint some parameters to be equal.  (Newton-Raphson algorithm)
+ }
+
+
+
+\headerbox{Results}{name=Results,span=1,column=2,below=Methods2}{
+
+\textbf{Exploitation rates}: Table showing estimate(SE) in \% per region and year. \smaller{(*) : Unable to recover SE numerically}
+
+\begin{center}
+\scalebox{0.9}{\begin{tabular}{r|c|c|c|c}
+
+       &       East &        Off &      South &       West \\ \hline
+
+        1997 &   0.6(0.2) &   0.9(0.8) &   \textcolor{red}{5.5}(*) &  \textcolor{red}{8.1}(12.5) \\
+
+        1998 &   \textcolor{red}{5.5}(0.9) &   2.3(0.5) &   \textcolor{red}{5.9}(*) &   2.3(0.7) \\
+
+        1999 &  \textcolor{red}{11.3}(1.6) &   3.3(0.6) &       \textcolor{red}{13.4}(*) &   2.7(0.7) \\
+
+        2000 &   \textcolor{red}{5.8}(0.5) &        4.2(*) &  \textcolor{red}{12.5}(0.6) &   0.9(0.2) \\
+
+        2001 &   \textcolor{red}{7.8}(0.6) &        3.2(*) &  \textcolor{red}{11.2}(0.6) &   1.7(0.3) \\
+
+        2002 &   \textcolor{red}{7.6}(0.6) &        2.6(*) &   \textcolor{red}{8.9}(0.5) &   0.9(0.2) \\
+
+        2003 &  \textcolor{red}{14.8}(1.7) &   2.7(0.5) &   \textcolor{red}{8.2}(0.1) &   0.3(0.1) \\
+
+        2004 &   3.8(0.6) &   3.2(0.6) &   \textcolor{red}{7.4}(0.2) &   0.4(0.2) \\
+
+        2005 &   3.1(0.5) &   \textcolor{red}{6.4}(1.2) &   \textcolor{red}{7.4}(0.2) &   0.5(0.2) \\
+
+        2006 &   \textcolor{red}{5.9}(0.5) &  \textcolor{red}{5.4}(0.7) &   \textcolor{red}{8.1}(0.8) &   0.3(0.2) \\
+
+        2007 &   3.1(0.3) &  \textcolor{red}{21.4}(1.4) &   4.1(0.5) &   1.1(0.4) \\
+
+        2008 &   3.2(0.3) &  \textcolor{red}{10.3}(1.2) &   \textcolor{red}{7.1}(0.8) &   1.1(0.4) \\
+
+        2009 &   2.6(0.3) &        \textcolor{red}{7.8}(*) &   \textcolor{red}{5.0}(0.4) &   1.0(0.4) \\
+
+        2010 &   1.7(0.2) &        \textcolor{red}{6.9}(*) &   \textcolor{red}{5.6}(0.7) &   0.7(0.3) \\
+
+        2011 &   1.0(0.2) &   2.8(0.6) &   2.6(0.4) &   0.4(0.3) \\
+
+\end{tabular}}\end{center}
+
+\begin{multicols}{2}    % 3 columns
+
+\textbf{Tag Retention}: \\
+Estimated Cumulative Tag Retention Probabilities (Kirkwood's Model)
+
+\includegraphics[width=14em]{kirkwood.png}
+
+\textbf{Migration}:\\
+
+% Table generated by Excel2LaTeX from sheet 'simu2goodtables.txt'
+\scalebox{0.9}{\begin{tabular}{r|cccc}
+           &          E &          O &          S &          W \\ \hline
+
+         E &       \textcolor{red}{94.5} &        0.6 &        4.7 &        0.1 \\
+
+         O &        0.6 &       \textcolor{red}{47.6} &        5.2 &       \textcolor{red}{46.7} \\
+
+         S &        3.0 &        3.3 &       \textcolor{red}{93.2} &        0.6 \\
+
+         W &        0.3 &        1.9 &        0.2 &       \textcolor{red}{97.5} \\
+\end{tabular}} 
+
+\end{multicols}
+
+\textbf{Reporting rates:} For fish recovered as S, DF or DB, it varies from 18 \% to 99 \% with SE's ranging from 3 \% to 18 \%. For fish recovered as DD, it varies from 7 \% to 100 \% but many SE's are large and probably indicate identifiability problem. See ``further work''.\\
+
+}
+
+
+
+
+\headerbox{Results (cont'd)}{name=Results2,span=1,column=3,row=0}{
+
+\textbf{Annual Survival Rate} : 74.6 \%, SE=0.4. We investigated the \textcolor{red}{effect of doubling the natural death rate on exploitation rates} by fixing the survival probability to 49.3 \% in our model� Following table shows estimate(SE) in \% per region and year. \smaller{(*) : Unable to recover SE numerically}
+\begin{center}
+\scalebox{0.9}{\begin{tabular}{r|c|c|c|c}
+
+       &       East &        Off &      South &       West \\ \hline
+
+        1997 &   0.6(0.2) &   0.9(0.8) &   \textcolor{red}{5.5}(*) &  \textcolor{red}{8.1}(12.5) \\
+
+        1998 &   \textcolor{red}{5.5}(0.9) &   2.3(0.5) &   \textcolor{red}{5.9}(*) &   2.3(0.7) \\
+
+        1999 &  \textcolor{red}{11.3}(1.6) &   3.3(0.6) &       \textcolor{red}{13.4}(*) &   2.7(0.7) \\
+
+        2000 &   \textcolor{red}{5.8}(0.5) &        4.2(*) &  \textcolor{red}{12.5}(0.6) &   0.9(0.2) \\
+
+        2001 &   \textcolor{red}{7.8}(0.6) &        3.2(*) &  \textcolor{red}{11.2}(0.6) &   1.7(0.3) \\
+
+        2002 &   \textcolor{red}{7.6}(0.6) &        2.6(*) &   \textcolor{red}{8.9}(0.5) &   0.9(0.2) \\
+
+        2003 &  \textcolor{red}{14.8}(1.7) &   2.7(0.5) &   \textcolor{red}{8.2}(0.1) &   0.3(0.1) \\
+
+        2004 &   3.8(0.6) &   3.2(0.6) &   \textcolor{red}{7.4}(0.2) &   0.4(0.2) \\
+
+        2005 &   3.1(0.5) &   \textcolor{red}{6.4}(1.2) &   \textcolor{red}{7.4}(0.2) &   0.5(0.2) \\
+
+        2006 &   \textcolor{red}{5.9}(0.5) &  \textcolor{red}{5.4}(0.7) &   \textcolor{red}{8.1}(0.8) &   0.3(0.2) \\
+
+        2007 &   3.1(0.3) &  \textcolor{red}{21.4}(1.4) &   4.1(0.5) &   1.1(0.4) \\
+
+        2008 &   3.2(0.3) &  \textcolor{red}{10.3}(1.2) &   \textcolor{red}{7.1}(0.8) &   1.1(0.4) \\
+
+        2009 &   2.6(0.3) &        \textcolor{red}{7.8}(*) &   \textcolor{red}{5.0}(0.4) &   1.0(0.4) \\
+
+        2010 &   1.7(0.2) &        \textcolor{red}{6.9}(*) &   \textcolor{red}{5.6}(0.7) &   0.7(0.3) \\
+
+        2011 &   1.0(0.2) &   2.8(0.6) &   2.6(0.4) &   0.4(0.3) \\
+
+\end{tabular}}\end{center}
+
+}
+
+\headerbox{Further Work}{name=further,span=1,column=3,below=Results2}{
+\textbf{Length}: To be incorporated in the analysis because exploitation rate is known to vary by length. This involves growth curve estimation, see method in Cadigan and Brattey (2001) \cite{CB} which was applied to a subset of the 1997-2000 data. \\ %It is known that exploitation rates vary with fish length. We would like to take this into account in our model. In order to do so, we will have to model fish growth. Survival depends on length.
+%Hence, our exploitation rate estimates are valid if the distribution of the length of the released fish is the same as the length distribution in the population.
+
+\textbf{Population structure}: Use a latent-state model (eg. bayesian approach) to distinguish between resident inshore and migrant offshore cods. \\ %There is sub-structure within the population (resident inshore cod and migrant offshore cod). We would like to use a latent state model.
+
+\textbf{Reporting rates}: As in \cite{CB}, estimate the odds ratio of reporting double vs single low-reward tags, rather than estimating $\lambda_{DD}$ (results in improved precision in estimating double tag reporting rates and reduced number of parameters).\\  %Our attemps to implement this have been unsuccessful yet odds ratio like in Brattey and Cadigan but
+
+\textbf{Model Sophistication}: Fit models successfully using smaller time scale (season, month) and areas.\\
+
+\textbf{2-step MLE}: Preliminary developements suggest that likelihood can be broken in 2 pieces that can be maximized successively. This allows to estimate tag retention and reporting rates separately, reducing the complexity of the problem.\\
+}
+
+\headerbox{References}{name=references,column=3,below=further}{
+\smaller													% Make the whole text smaller
+\vspace{-0.4em} 										% Save some space at the beginning
+\bibliographystyle{plain}							% Use plain style
+\renewcommand{\section}[2]{\vskip 0.05em}		% Omit "References" title
+\begin{thebibliography}{1}							% Simple bibliography with widest label of 1
+\itemsep=-0.01em										% Save space between the separation
+\setlength{\baselineskip}{0.4em}					% Save space with longer lines
+
+\bibitem{BC} Brattey, J. and Cadigan N.G. (2006). Reporting and Shedding Rate Estimates From Tag-Recovery Experiments on Atlantic Cod (Gadus Morhua) in Coastal Newfoundland. \emph{Can. J. Fish. Aquatic Sc.}, 63(9), 1944-1944.
+
+\bibitem{CB} Cadigan N.G. and Brattey, J. (2001). A Nonparametric Von Bertalanffy Model for Estimating Growth Curves of Atlantic Cod. ICES CM 2001/O:18. Available from: http://www.ices.dk/products/CMdocs/2001/O/O1801.pdf. Accessed May 2012.
+
+\bibitem{Cowen} Cowen, L. et al. (2009). Estimating Exploitation Rates of a Migrating Population of Yellowtail Flounders Using Multi-State Mark-Recapture Methods Incorporating Tag-Loss and Variable Reporting Rates. \emph{Can. J. Fish. Aquatic Sc.}, 66, 1245-1273.
+
+\end{thebibliography}
+}
+
+\headerbox{Acknowledgements}{name=acknowledgements,column=3,below=references}{
+\smaller						% Make the whole text smaller
+\vspace{-0.4em}			% Save some space at the beginning
+We are indebted and very grateful to Laura Cowen for sharing her code from \cite{Cowen}. Special thanks to our mentor, Carl Schwarz. The authors acknowledge the support from NSERC.
+} 
+
+\end{poster}
+\end{document}
