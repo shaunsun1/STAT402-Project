@@ -88,70 +88,73 @@ sum(is.na(study_data))  # 0 missing values
 cor(study_data[, 4:8])
 pairs(study_data[2:8])
 
-# Variables are not linearly correlated. Thus, we can maybe ignore other explanatory variables when plotting log odds against
-# a single variable
+# Variables are not linearly correlated. Thus, we can maybe ignore other explanatory variables when plotting log odds 
+# against a single variable
 
-# Group by categorical CLC_AGE and calculate log odds
-eda = study_data[, 1:8] %>%
-  mutate(CLC_AGE_CAT = cut_number(CLC_AGE, 30)) %>%
+eda = study_data[, 1:9] %>%
+  mutate(CLC_AGE_CAT = cut_number(CLC_AGE, 30), HWMDBMI_CAT = cut_number(HWMDBMI, 30), LAB_BCD_CAT = cut_number(LAB_BCD, 20), LAB_BHG_CAT = cut_number(LAB_BHG, 30))
+
+# Group by categorical CLC_AGE and for each group, calculate log odds and sum of survey weights
+eda1 = eda %>%
   group_by(CLC_AGE_CAT) %>%
-  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))))
+  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))), weights = sum(WGT_FULL))
 
-# Plot logit(HIGHBP) against our categorical CLC_AGE
-ggplot(eda, aes(CLC_AGE_CAT, logit)) +
-  geom_point() +
+# Plot logit(HIGHBP) against our categorical CLC_AGE, with size proportional to the relative weight
+ggplot(eda1, aes(CLC_AGE_CAT, logit)) +
+  geom_point(aes(size = weights)) +
   xlab("Age") + 
   ylab("Log Odds of Mean Hypertension") + 
   ggtitle("Relationship between Log Odds and Age is Linear") +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1)) +
+  scale_size_continuous("Survey Weights")
 
 # No higher order terms for CLC_AGE are needed
 
 # Repeat for HWMDBMI
-eda = study_data[, 1:8] %>%
-  mutate(HWMDBMI_CAT = cut_number(HWMDBMI, 30)) %>%
+eda2 = eda %>%
   group_by(HWMDBMI_CAT) %>%
-  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))))
+  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))), weights = sum(WGT_FULL))
 
-# Plot logit(HIGHBP) against our categorical HWMDBMI
-ggplot(eda, aes(HWMDBMI_CAT, logit)) +
-  geom_point() +
+# Plot logit(HIGHBP) against our categorical HWMDBMI, with size proportional to the relative weight
+ggplot(eda2, aes(HWMDBMI_CAT, logit)) +
+  geom_point(aes(size = weights)) +
   xlab("Body Mass Index") + 
   ylab("Log Odds of Mean Hypertension") + 
   ggtitle("Relationship between Log Odds and Body Mass Index is Possibly Quadratic") +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1)) +
+  scale_size_continuous("Survey Weights")
 
 # A quadratic term for HWMDBMI should be added
 
 # Repeat for LAB_BCD
-eda = study_data[, 1:8] %>%
-  mutate(LAB_BCD_CAT = cut_number(LAB_BCD, 20)) %>%
+eda3 = eda %>%
   group_by(LAB_BCD_CAT) %>%
-  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))))
+  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))), weights = sum(WGT_FULL))
 
-# Plot logit(HIGHBP) against our categorical HWMDBMI
-ggplot(eda, aes(LAB_BCD_CAT, logit)) +
-  geom_point() +
+# Plot logit(HIGHBP) against our categorical HWMDBMI, with size proportional to the relative weight
+ggplot(eda3, aes(LAB_BCD_CAT, logit)) +
+  geom_point(aes(size = weights)) +
   xlab("Concentration of Blood Cadmium (nmol/L)") + 
   ylab("Log Odds of Mean Hypertension") + 
   ggtitle("Relationship between Log Odds and Blood Cadmium Concentration is Possibly Quadratic") +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1)) +
+  scale_size_continuous("Survey Weights")
 
 # A quadratic term for LAB_BCD should be added
 
 # Repeat for LAB_BHG
-eda = study_data[, 1:8] %>%
-  mutate(LAB_BHG_CAT = cut_number(LAB_BHG, 30)) %>%
+eda4 = eda %>%
   group_by(LAB_BHG_CAT) %>%
-  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))))
+  summarize(logit = log(mean(HIGHBP-1)/(1 - mean(HIGHBP-1))), weights = sum(WGT_FULL))
 
-# Plot logit(HIGHBP) against our categorical HWMDBMI
-ggplot(eda, aes(LAB_BHG_CAT, logit)) +
-  geom_point() +
+# Plot logit(HIGHBP) against our categorical HWMDBMI, with size proportional to the relative weight
+ggplot(eda4, aes(LAB_BHG_CAT, logit)) +
+  geom_point(aes(size = weights)) +
   xlab("Concentration of Blood Mercury (nmol/L)") + 
   ylab("Log Odds of Mean Hypertension") + 
   ggtitle("Relationship between Log Odds and Blood Mercury Concentration is Possibly Quadratic") +
-  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1))
+  theme(plot.title = element_text(hjust = 0.5), axis.text.x = element_text(angle = -30, hjust = 0, vjust = 1)) +
+  scale_size_continuous("Survey Weights")
 
 # A quadratic term for LAB_BHG could be added
 

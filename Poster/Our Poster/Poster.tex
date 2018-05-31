@@ -150,7 +150,25 @@
 }
 
 
-\headerbox{Cleaning the Data}{name=Imputation,column=0,below=Introduction}{
+\headerbox{Notation}{name=Notation,column=0,below=Introduction}{
+\textbf{Data}: Let $i$ denote the study participant, and $j$ the explanatory variable. The data can be summarized into the following quantities:
+\item n: Sample size
+\item $y_{i}$: Vector whose $i$th element is the HIGHBP value of the $i$th study participant
+\item $x_{i}$: Vector whose $j$th element is the observed value of the $j$th covariate for the $i$th study participant
+\item $w_{i}$: Vector whose $i$th element is the survey weight for the $i$th study participant
+\item $g()$: Link function 
+
+\textbf{Parameters}:
+\item $\mu_{i}$: Vector whose $i$th element equals the expected value of HIGHBP for the $i$th study participant
+\item $\hat{\beta_{j}}$: Vector whose $j$th element is the estimated coefficient of the $j$th explanatory variable
+}
+
+
+\headerbox{Assumptions}{name=Assumptions,column=0,below=Imputation}{
+}
+
+
+\headerbox{Cleaning the Data}{name=Imputation,column=0,below=Notation}{
 
 \textbf{Censored Data}: The variables LAB_BCD and LAB_BHG both contained data that was below their respective Limit of Detection (LOD).
 \item This censored data was imputed with values randomly drawn from the interval [0, LOD].
@@ -163,12 +181,33 @@
 }
 
 
-\headerbox{Exploratory Data Analysis}{name=Descriptive,column=0,below=Imputation}{
+\headerbox(Model Theory}{name=Methods,column=1,span=1,below=Imputation}{
 
-% Note to Shaun: This section should maybe come later, after we have explained we are using logistic regression. After all, the y-axis in these graphs is the logit!
-% Also, not sure how much of this information should go into the more detailed handout instead of the poster.
-The logit of mean hypertension was plotted against each of the continuous regressor variables in turn to determine whether higher-order terms should be included in the model. 
-In these plots, the continuous variables were made into categorical variables to avoid observed hypertension proportions of 0 or 1.
+\textbf{Unweighted Model}: A generalized linear model without using design weights was first created.
+\item The response HIGHBP was modelled as independent categorical r.v.'s with parameters $u_{i}$.
+\item The logit link function was used to model the relationship between $u_{i}$ and the explanatory variables.
+
+The parameter coefficients $\beta$ are estimated with their MLE's, which satisfy the following equation:
+
+\begin{equation}
+% This equation is supposed to equal the equation right before (3.1) in the paper "Fitting Regression Models to Survey Data" on github
+U(\hat{\beta}) = \sum_{i=1}{n} x_{i}\frac{1}{g'(\mu_{i})V(\mu_{i})}(y_{i} - \mu_{i}(\hat{\beta})) = 0
+\end{equation}
+
+\textbf{Weighted Model}: A model using the design weights was then created. 
+\item Following Lumley..., the score function above was altered to incorporate design weights, and this was solved to get the parameter estimates:
+
+\begin{equation}
+% This equation is supposed to equal (3.1) in the paper "Fitting Regression Models to Survey Data" on github (without R_i, since we use sample size n instead of population size N)
+U(\hat{\beta}) = \sum_{i=1}{n} w_{i}x_{i}\frac{1}{g'(\mu_{i})V(\mu_{i})}(y_{i} - \mu_{i}(\hat{\beta})) = 0
+\end{equation}
+}
+
+
+\headerbox{Exploratory Analysis}{name=EDA,column=0,below=Methods}{
+
+\textbf{Purpose}: To determine whether higher-order terms should be included in the models.
+\item In these plots, the continuous variables were made into categorical variables to avoid observed hypertension proportions of 0 or 1.
 
 \includegraphics[width=10em]{LogOdds_Age.png}
 \includegraphics[width=10em]{LogOdds_BMI.png}
@@ -176,9 +215,82 @@ In these plots, the continuous variables were made into categorical variables to
 \includegraphics[width=10em]{LogOdds_Mercury.png}
 
 % I can't generate the Latex file, so please change this if it looks bad!
-
 These graphs suggest that including second-order terms for HWMDBMI, LAB_BCD, and LAB_BHG in the model could be informative, but isn't necessary for CLC_AGE.
+
+% Say something about how BIC also justifies this choice...
 }
+
+\headerbox{Checking Model Fit}{name=Model Fit,column=0,below=EDA}{
+}
+
+\headerbox{Hypothesis Testing Theory}{name=Testing,column=0,below=Model Fit}{
+\textbf{Null Hypothesis}: Suppose $\beta$ is partitioned by ($\beta_{(1)}$, $\beta_{(2)}$). The null hypothesis is $H_{0}$: $\beta_{(1)}$ = 0, where the dimension of $\beta_{(1)}$ is q.
+
+\textbf{Unweighted Model}: For the unweighted model, the log-likelihood ratio statistic was used to test $H_{0}$.
+\item Under the null hypothesis, this statistic follows a Chi-Square distribution with q degree of freedom.
+
+\textbf{Weighted Model}: A different method was now needed because the likelihood equations do not exist for the weighted model.
+\item Following Lumley..., the standard likelihood function was altered to include weights:
+
+\begin{equation}
+% This should equal the equation right before (4.1) in the paper "Fitting Regression Models to Survey Data" on github
+\hat{\ell(\beta)} = \sum_{i=1}{n} w_{i}\log{f(y_{i}|x_{i}; \beta)}
+\end{equation}
+
+where f is the pdf of HIGHBP. The working likelihood ratio test statistic was then defined by Lumley as 
+
+\begin{equation}
+% This should equal the equation (4.1) in the paper "Fitting Regression Models to Survey Data" on github
+\tau = 2\left[\hat{\ell(\hat{\beta})} - \hat{\ell(\hat{\beta_{0}})} \right]
+\end{equation}
+
+where $\hat{\beta_{0}}$ is the solution to the weighted score function when $\beta_{(1)}$ = 0.
+Finally, $/tau$ has a rather complex distribution under $H_{0}$, but the saddlepoint approximation (Kuonen, 1999) can be used to approximate it.
+}
+
+\headerbox{Results}{name=Results,column=0,below=Testing}{
+}
+
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+%---------------------------------------------------------------------------------------------End of current work---------------------------------------------------------------------------------------------------%
+%------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------%
+
+
+
+\headerbox{Methods}{name=Methods,column=1,span=1,below=Assumptions}{
+\textbf{Model}: Following Cowen et al. (), we model the $R_{ijg}$'s as \textcolor{red}{independent Poisson r.v.} with parameter $E(R_{ijg})$.\\
+
+If $g=$ S or H,
+\begin{equation}
+E(R_{ijg}) =\color{red}\tilde N_{isg} \color{black}\left[ \prod_{l=i}^{j-1}  \tilde \phi_{l} Q_{l} \big(1-\tilde p_{l}\big) \right]  \phi_{j} Q_{j}\tilde p_{j}\Lambda_{ijg}\tilde\lambda_{jg}
+\end{equation}
+and if $g=$ DF, DB or DD,
+\begin{equation}
+E(R_{ijg}) =\color{red}\tilde N_{isDD} \color{black}\left[ \prod_{l=i}^{j-1}  \tilde \phi_{l} Q_{l} \big(1-\tilde p_{l}\big) \right] \phi_{j} Q_{j} \tilde p_{j}\Lambda_{ijg}\tilde\lambda_{jg}.
+\end{equation}
+}
+
+\headerbox{Methods (cont'd)}{name=Methods2,column=2,span=1,row=0}{
+
+\textbf{Interpretation}: Element $(s,t)$ of the matrix $E(R_{ijDF})$ is the expected number of double tagged fish released in year $i$ in region $s$ ($\tilde N_{isDD}$) that survived ($\tilde \phi_{i}$) and migrated ($Q_{i}$) and were not captured $\big(1-\tilde p_{i}\big)$ during year $i$. Further, they survived, migrated and were not captured up to the end of year $j-1$. Then, during year $j$, they survived, migrated to region $t$ and finally were captured ($p_{j}$) with only a front tag ($\Lambda_{ijDF}$) and were reported ($\lambda_{jDF}$).\\
+
+\textbf{Tag Loss Model}: Following Brattey and Cadigan (2006) \cite{BC}, we model $\Lambda_{ilF}$ and $\Lambda_{ilG}$ using \textcolor{red}{Kirkwood's parametric model}. That is, for $h=F$ or $B$,
+\begin{equation}
+\Phi_{ilh} = \left[\frac{\beta_{1h}}{\beta_{1h}+\beta_{2h} (l-i)}\right]^{\beta_{2h}}, \beta_{1h}>0, \beta_{2h}>0.
+\end{equation}
+
+
+ \textbf{Constraining parameters}: Parameters that represent probabilities are constrained between 0 and 1 using a \textcolor{red}{logit transformation}.  Kirkwood's parameters in () are constrained $>0$ using an \textcolor{red}{exponential transformation}.\\
+
+ \textbf{Point \& Variance Estimation}: \textcolor{red}{Maximum likelihood} and Delta method\\ %$\prod_{\{i,j,g\}} R_{ijg}$\\
+
+ \textbf{Model Selection}: Due to the complexity of the model and the sparse, we have been able to fit only very few models with success. Therefore, we will only present the most sophisticated model we have been able to fit. We would suggest using QAIC to compare different models.\\
+
+ \textbf{Computing}: We use R version ... Our code is general for any time period length or number of regions. We use design matrices allowing to constraint some parameters to be equal.  (Newton-Raphson algorithm)
+ }
+
 
 
 \headerbox{Notation}{name=Notation,column=0,below=Descriptive}{
@@ -246,38 +358,6 @@ Brattey and Cadigan (2006) \cite{BC} show that...\\
 \textbf{Closed Population}: Fish do not travel outside the study area \\
 
 }
-
-\headerbox{Methods}{name=Methods,column=1,span=1,below=Assumptions}{
-\textbf{Model}: Following Cowen et al. (), we model the $R_{ijg}$'s as \textcolor{red}{independent Poisson r.v.} with parameter $E(R_{ijg})$.\\
-
-If $g=$ S or H,
-\begin{equation}
-E(R_{ijg}) =\color{red}\tilde N_{isg} \color{black}\left[ \prod_{l=i}^{j-1}  \tilde \phi_{l} Q_{l} \big(1-\tilde p_{l}\big) \right]  \phi_{j} Q_{j}\tilde p_{j}\Lambda_{ijg}\tilde\lambda_{jg}
-\end{equation}
-and if $g=$ DF, DB or DD,
-\begin{equation}
-E(R_{ijg}) =\color{red}\tilde N_{isDD} \color{black}\left[ \prod_{l=i}^{j-1}  \tilde \phi_{l} Q_{l} \big(1-\tilde p_{l}\big) \right] \phi_{j} Q_{j} \tilde p_{j}\Lambda_{ijg}\tilde\lambda_{jg}.
-\end{equation}
-}
-
-\headerbox{Methods (cont'd)}{name=Methods2,column=2,span=1,row=0}{
-
-\textbf{Interpretation}: Element $(s,t)$ of the matrix $E(R_{ijDF})$ is the expected number of double tagged fish released in year $i$ in region $s$ ($\tilde N_{isDD}$) that survived ($\tilde \phi_{i}$) and migrated ($Q_{i}$) and were not captured $\big(1-\tilde p_{i}\big)$ during year $i$. Further, they survived, migrated and were not captured up to the end of year $j-1$. Then, during year $j$, they survived, migrated to region $t$ and finally were captured ($p_{j}$) with only a front tag ($\Lambda_{ijDF}$) and were reported ($\lambda_{jDF}$).\\
-
-\textbf{Tag Loss Model}: Following Brattey and Cadigan (2006) \cite{BC}, we model $\Lambda_{ilF}$ and $\Lambda_{ilG}$ using \textcolor{red}{Kirkwood's parametric model}. That is, for $h=F$ or $B$,
-\begin{equation}
-\Phi_{ilh} = \left[\frac{\beta_{1h}}{\beta_{1h}+\beta_{2h} (l-i)}\right]^{\beta_{2h}}, \beta_{1h}>0, \beta_{2h}>0.
-\end{equation}
-
-
- \textbf{Constraining parameters}: Parameters that represent probabilities are constrained between 0 and 1 using a \textcolor{red}{logit transformation}.  Kirkwood's parameters in () are constrained $>0$ using an \textcolor{red}{exponential transformation}.\\
-
- \textbf{Point \& Variance Estimation}: \textcolor{red}{Maximum likelihood} and Delta method\\ %$\prod_{\{i,j,g\}} R_{ijg}$\\
-
- \textbf{Model Selection}: Due to the complexity of the model and the sparse, we have been able to fit only very few models with success. Therefore, we will only present the most sophisticated model we have been able to fit. We would suggest using QAIC to compare different models.\\
-
- \textbf{Computing}: We use R version ... Our code is general for any time period length or number of regions. We use design matrices allowing to constraint some parameters to be equal.  (Newton-Raphson algorithm)
- }
 
 
 
